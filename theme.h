@@ -6,7 +6,11 @@
 typedef struct {
     char* name;
     Color bg;
-    Color color;
+    Color cursor;
+    Color text;
+    Color minibuffer;
+    Color modeline;
+    Color modeline_highlight;
 } Theme;
 
 extern Theme themes[];
