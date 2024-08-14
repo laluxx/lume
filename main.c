@@ -14,11 +14,9 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 int screenWidth, screenHeight;
 Renderer renderer = {0}; // NOTE this has to be outside the main
 
-#include <pthread.h>
-#include <unistd.h>
-
 int main(void) {
     GLFWwindow* window;
+
 
     if (!glfwInit())
         return -1;
@@ -48,9 +46,18 @@ int main(void) {
 
     initInput(window);
     initializeThemes();
+    
+    glfwWindowHint(GLFW_SAMPLES, 4); // Set 4x MSAA
+    glEnable(GL_MULTISAMPLE);
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_POLYGON_SMOOTH);
 
 
     while (!glfwWindowShouldClose(window)) {
+
+        /* glPointSize(4.0f); */
+        /* glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); */
+
 
         if (isKeyDown(KEY_LEFT_ALT) || isKeyDown(KEY_RIGHT_ALT)) {
             if (isKeyPressed(KEY_EQUAL)) nextTheme();
@@ -69,9 +76,21 @@ int main(void) {
         glClearColor(CURRENT_THEME.bg.r, CURRENT_THEME.bg.g, CURRENT_THEME.bg.b, CURRENT_THEME.bg.a);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        useShader(&renderer, "simple");
+        useShader(&renderer, "circle");
         drawRectangle(&renderer, (Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, CURRENT_THEME.cursor);
-        drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
+        flush(&renderer);
+
+
+
+
+        useShader(&renderer, "simple");
+
+        if (isGamepadButtonDown(GAMEPAD_BUTTON_A)) {
+            drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
+        } else {
+            drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.cursor);
+        }
+        
         flush(&renderer);
 
         

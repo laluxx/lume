@@ -107,7 +107,8 @@ void reloadShaders(Renderer *renderer) {
 
 void initShaders(Renderer *renderer) {
   newShader(renderer, "./shaders/simple.vert", "./shaders/simple.frag", "simple");
-  newShader(renderer, "./shaders/wave.vert", "./shaders/cool.frag", "wave");
+  newShader(renderer, "./shaders/wave.vert",   "./shaders/cool.frag",   "wave");
+  newShader(renderer, "./shaders/simple.vert", "./shaders/circle.frag", "circle");
 }
 
 void useShader(Renderer *renderer, const char *shaderName) {
@@ -137,7 +138,7 @@ void flush(Renderer *renderer) {
         fprintf(stderr, "Could not find projectionMatrix uniform location\n");
     }
 
-    // the time uniform TODO is renderer->activeShader correct here ?
+    // TODO is renderer->activeShader correct here ?
     // what if the active shader doesn't use the time uniform at all but the next shader does
     GLint timeLocation = glGetUniformLocation(renderer->activeShader, "time");
     if (timeLocation != -1) {

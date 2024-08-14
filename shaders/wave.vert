@@ -14,7 +14,7 @@ void main()
     vec4 projectedPos = projectionMatrix * vec4(aPos, 1.0);
 
     vec3 animatedPos = projectedPos.xyz;
-    animatedPos.y += sin(time + aPos.x * 10.0) * 0.1;
+    animatedPos.y += sin(time + aPos.x * 1.0) * 0.1;
 
     gl_Position = vec4(animatedPos, projectedPos.w);
     
