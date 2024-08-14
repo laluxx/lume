@@ -62,4 +62,10 @@ void drawRectangle(Renderer *renderer, Vec2f position, Vec2f size, Color color);
 
 void updateProjectionMatrix(Renderer *renderer, int width, int height);
 
+void deleteShaders(Renderer *renderer);
+void reloadShaders(Renderer *renderer);
+
+
+
+
 #endif  // RENDERER_H

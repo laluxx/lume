@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <GLFW/glfw3.h>
+#include <stdbool.h>
+#include "input.h"
 
 static char *readFile(const char *filePath);
 static GLuint compileShader(const char *source, GLenum shaderType);
@@ -87,6 +89,22 @@ int newShader(Renderer *renderer,
   return renderer->numShaders - 1; // Return the index of the new shader
 }
 
+
+void deleteShaders(Renderer *renderer) {
+    for (int i = 0; i < renderer->numShaders; i++) {
+        glDeleteProgram(renderer->shaders[i].shaderID);
+        free(renderer->shaders[i].name);
+        renderer->shaders[i].shaderID = 0;
+    }
+    renderer->numShaders = 0;
+    // renderer->activeShader = 0;
+}
+
+void reloadShaders(Renderer *renderer) {
+    deleteShaders(renderer);
+    initShaders(renderer);
+}
+
 void initShaders(Renderer *renderer) {
   newShader(renderer, "./shaders/simple.vert", "./shaders/simple.frag", "simple");
   newShader(renderer, "./shaders/wave.vert", "./shaders/cool.frag", "wave");
@@ -102,6 +120,8 @@ void useShader(Renderer *renderer, const char *shaderName) {
     }
 }
 
+
+bool invert = false;
 
 void flush(Renderer *renderer) {
     glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
@@ -124,6 +144,7 @@ void flush(Renderer *renderer) {
         float currentTime = glfwGetTime();
         glUniform1f(timeLocation, currentTime);
     }
+
 
 
     glBindVertexArray(renderer->vao);
@@ -187,7 +208,6 @@ void drawRectangle(Renderer *renderer, Vec2f position, Vec2f size, Color color) 
     drawTriangleColors(renderer, p1, color, uv1, p3, color, uv3, p2, color, uv2);
     drawTriangleColors(renderer, p2, color, uv2, p3, color, uv3, p4, color, uv4);
 }
-
 
 void updateProjectionMatrix(Renderer *renderer, int width, int height) {
     float near = -1.0f;
@@ -280,4 +300,3 @@ static GLuint linkProgram(const char *vertexSource, const char *fragmentSource) 
 
     return program;
 }
-

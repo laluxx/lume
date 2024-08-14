@@ -1,6 +1,8 @@
 #include "input.h"
 #include <stdio.h>
 
+// TODO Debouncing
+
 #define MAX_KEYS 512
 static int keys[MAX_KEYS];
 static int keysPressed[MAX_KEYS];

@@ -8,12 +8,14 @@
 #include "common.h"
 
 // TODO audio module
-// TODO fix the wave.frag
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
 int screenWidth, screenHeight;
 Renderer renderer = {0}; // NOTE this has to be outside the main
+
+#include <pthread.h>
+#include <unistd.h>
 
 int main(void) {
     GLFWwindow* window;
@@ -23,10 +25,10 @@ int main(void) {
 
     window = glfwCreateWindow(640, 480, "Lume", NULL, NULL);
     if (!window)
-    {
-        glfwTerminate();
-        return -1;
-    }
+        {
+            glfwTerminate();
+            return -1;
+        }
     
     glfwMakeContextCurrent(window);
     glfwSwapInterval(0);
@@ -47,21 +49,29 @@ int main(void) {
     initInput(window);
     initializeThemes();
 
+
     while (!glfwWindowShouldClose(window)) {
-                    
+
         if (isKeyDown(KEY_LEFT_ALT) || isKeyDown(KEY_RIGHT_ALT)) {
             if (isKeyPressed(KEY_EQUAL)) nextTheme();
             if (isKeyPressed(KEY_MINUS)) previousTheme();
         }
 
+        if (isKeyPressed(KEY_R)) {
+            reloadShaders(&renderer);
+        }
+
         updateInput();  // NOTE This should be called after all key handling
+
+        reloadShaders(&renderer); // TODO reloading shaders every frame its bad,
+
 
         glClearColor(CURRENT_THEME.bg.r, CURRENT_THEME.bg.g, CURRENT_THEME.bg.b, CURRENT_THEME.bg.a);
         glClear(GL_COLOR_BUFFER_BIT);
 
         useShader(&renderer, "simple");
         drawRectangle(&renderer, (Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, CURRENT_THEME.cursor);
-        drawRectangle(&renderer, (Vec2f){0, 0}, (Vec2f){screenWidth, 21}, CURRENT_THEME.modeline_highlight);
+        drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
         flush(&renderer);
 
         
@@ -78,6 +88,7 @@ int main(void) {
                            (Vec2f){75.0f, 100.0f}, CURRENT_THEME.text,       (Vec2f){0.5f, 1.0f});
 
         flush(&renderer);
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();
