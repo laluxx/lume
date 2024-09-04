@@ -3,6 +3,7 @@
 
 #include <GL/glew.h>
 #include "common.h"
+#include <stdbool.h>
 
 #define VERTICIES_CAP (3*640*1000)
 /* static_assert(VERTICIES_CAP%3 == 0, "vertex capacity must be divisible by 3. We are rendering triangles after all."); */
@@ -65,6 +66,8 @@ void updateProjectionMatrix(Renderer *renderer, int width, int height);
 void deleteShaders(Renderer *renderer);
 void reloadShaders(Renderer *renderer);
 
+GLuint loadTexture(const char* filepath);
+void drawTexture(Renderer *renderer, Vec2f position, Vec2f size, GLuint textureID);
 
 
 

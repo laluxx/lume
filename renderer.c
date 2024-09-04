@@ -4,7 +4,68 @@
 #include <stdlib.h>
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
-#include "input.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+
+GLuint loadTexture(const char *filepath) {
+    stbi_set_flip_vertically_on_load(1);
+    int width, height, channels;
+    unsigned char *data = stbi_load(filepath, &width, &height, &channels, 0);
+    if (!data) {
+        fprintf(stderr, "Failed to load texture: %s\n", filepath);
+        return 0;
+    }
+
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
+                 GL_UNSIGNED_BYTE, data);
+
+    printf("[LOADED TEXTURE] %d x %d %d %s\n", width, height, channels, filepath);
+
+    stbi_image_free(data);
+    
+    return textureID;
+}
+
+
+void drawTexture(Renderer *renderer, Vec2f position, Vec2f size, GLuint textureID) {
+
+    /* glActiveTexture(GL_TEXTURE0); */
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    Vec2f p1 = {position.x, position.y};
+    Vec2f p2 = {position.x + size.x, position.y};
+    Vec2f p3 = {position.x, position.y + size.y};
+    Vec2f p4 = {position.x + size.x, position.y + size.y};
+
+    Vec2f uv1 = {0.0f, 0.0f};
+    Vec2f uv2 = {1.0f, 0.0f};
+    Vec2f uv3 = {0.0f, 1.0f};
+    Vec2f uv4 = {1.0f, 1.0f};
+
+    drawTriangleColors(renderer,
+                       p1, (Color){255, 255, 255, 1.0}, uv1,
+                       p3, (Color){255, 255, 255, 1.0}, uv3,
+                       p2, (Color){255, 255, 255, 1.0}, uv2);
+    drawTriangleColors(renderer,
+                       p2, (Color){255, 0, 0, 1.0}, uv2,
+                       p3, (Color){255, 0, 0, 1.0}, uv3,
+                       p4, (Color){255, 0, 0, 1.0}, uv4);
+
+    /* glBindTexture(textureID, 0); */
+}
+
+
 
 static char *readFile(const char *filePath);
 static GLuint compileShader(const char *source, GLenum shaderType);
@@ -62,31 +123,31 @@ int newShader(Renderer *renderer,
               const char *vertexPath, const char *fragmentPath,
               const char *shaderName)
 {
-  if (renderer->numShaders >= renderer->maxShaders) {
-    // Optionally resize the array
-    int newCapacity = renderer->maxShaders * 2;
-    Shader *newArray = realloc(renderer->shaders, sizeof(Shader) * newCapacity);
-    if (!newArray)
-      return -1; // Allocation failed
-    renderer->shaders = newArray;
-    renderer->maxShaders = newCapacity;
-  }
+    if (renderer->numShaders >= renderer->maxShaders) {
+        // Optionally resize the array
+        int newCapacity = renderer->maxShaders * 2;
+        Shader *newArray = realloc(renderer->shaders, sizeof(Shader) * newCapacity);
+        if (!newArray)
+            return -1; // Allocation failed
+        renderer->shaders = newArray;
+        renderer->maxShaders = newCapacity;
+    }
 
-  char *vertexSource = readFile(vertexPath);
-  char *fragmentSource = readFile(fragmentPath);
-  GLuint program = linkProgram(vertexSource, fragmentSource);
-  free(vertexSource);
-  free(fragmentSource);
+    char *vertexSource = readFile(vertexPath);
+    char *fragmentSource = readFile(fragmentPath);
+    GLuint program = linkProgram(vertexSource, fragmentSource);
+    free(vertexSource);
+    free(fragmentSource);
 
-  if (program == 0)
-    return -1; // Shader compilation/linking failed
+    if (program == 0)
+        return -1; // Shader compilation/linking failed
 
-  Shader newShader = {
-      .shaderID = program,
-      .name = strdup(shaderName) // Duplicate name string
-  };
-  renderer->shaders[renderer->numShaders++] = newShader;
-  return renderer->numShaders - 1; // Return the index of the new shader
+    Shader newShader = {
+        .shaderID = program,
+        .name = strdup(shaderName) // Duplicate name string
+    };
+    renderer->shaders[renderer->numShaders++] = newShader;
+    return renderer->numShaders - 1; // Return the index of the new shader
 }
 
 
@@ -106,9 +167,11 @@ void reloadShaders(Renderer *renderer) {
 }
 
 void initShaders(Renderer *renderer) {
-  newShader(renderer, "./shaders/simple.vert", "./shaders/simple.frag", "simple");
-  newShader(renderer, "./shaders/wave.vert",   "./shaders/cool.frag",   "wave");
-  newShader(renderer, "./shaders/simple.vert", "./shaders/circle.frag", "circle");
+    newShader(renderer, "./shaders/simple.vert", "./shaders/simple.frag",  "simple");
+    newShader(renderer, "./shaders/wave.vert",   "./shaders/cool.frag",    "wave");
+    newShader(renderer, "./shaders/simple.vert", "./shaders/circle.frag",  "circle");
+    newShader(renderer, "./shaders/simple.vert",   "./shaders/texture.frag", "texture");
+    newShader(renderer, "./shaders/simple.vert",   "./shaders/text.frag",    "text");
 }
 
 void useShader(Renderer *renderer, const char *shaderName) {
@@ -130,7 +193,10 @@ void flush(Renderer *renderer) {
 
     glUseProgram(renderer->activeShader);
 
-    // Update projection matrix in the shader
+
+    // Update projection matrix
+    // TODO move uniform update into a function that run
+    // only once per frame
     GLint projMatrixLocation = glGetUniformLocation(renderer->activeShader, "projectionMatrix");
     if (projMatrixLocation != -1) {
         glUniformMatrix4fv(projMatrixLocation, 1, GL_FALSE, renderer->projectionMatrix);
@@ -145,8 +211,6 @@ void flush(Renderer *renderer) {
         float currentTime = glfwGetTime();
         glUniform1f(timeLocation, currentTime);
     }
-
-
 
     glBindVertexArray(renderer->vao);
     glDrawArrays(GL_TRIANGLES, 0, renderer->vertexCount);
@@ -172,9 +236,9 @@ void drawVertex(Renderer *renderer, Vec2f position, Color color, Vec2f uv) {
 }
 
 void drawTriangleColors(Renderer *renderer,
-                  Vec2f p1, Color c1, Vec2f uv1,
-                  Vec2f p2, Color c2, Vec2f uv2,
-                  Vec2f p3, Color c3, Vec2f uv3)
+                        Vec2f p1, Color c1, Vec2f uv1,
+                        Vec2f p2, Color c2, Vec2f uv2,
+                        Vec2f p3, Color c3, Vec2f uv3)
 {
     drawVertex(renderer, p1, c1, uv1);
     drawVertex(renderer, p2, c2, uv2);
@@ -185,13 +249,13 @@ void drawTriangleColors(Renderer *renderer,
 void drawTriangle(Renderer *renderer, Color color,
                   Vec2f p1, Vec2f p2, Vec2f p3)
 {
-  Vec2f uv1 = {0.0f, 0.0f};
-  Vec2f uv2 = {1.0f, 0.0f};
-  Vec2f uv3 = {0.5f, 1.0f};
+    Vec2f uv1 = {0.0f, 0.0f};
+    Vec2f uv2 = {1.0f, 0.0f};
+    Vec2f uv3 = {0.5f, 1.0f};
 
-  drawVertex(renderer, p1, color, uv1);
-  drawVertex(renderer, p2, color, uv2);
-  drawVertex(renderer, p3, color, uv3);
+    drawVertex(renderer, p1, color, uv1);
+    drawVertex(renderer, p2, color, uv2);
+    drawVertex(renderer, p3, color, uv3);
 }
 
 // TODO drawQuad() where you specify the UV's quads are used for textures

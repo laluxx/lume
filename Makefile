@@ -1,18 +1,22 @@
-CC = clang
-TARGET = lume
-CFLAGS = -Wall -Wextra -I.
-LFLAGS = -lglfw -lGL -lGLEW
-SOURCES = ./*.c
+CC := clang
+CFLAGS := -Wall -Wextra -I/usr/include/freetype2 -I. -g
+LDLIBS := -lglfw -lGL -lGLEW -lm -lfreetype
+TARGET := lume
+SOURCES := $(wildcard ./*.c)
+OBJECTS := $(SOURCES:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS) $(SOURCES) $(LFLAGS) -o $(TARGET)
+$(TARGET): $(OBJECTS)
+	$(CC) $(OBJECTS) $(LDLIBS) -o $(TARGET)
 
-.PHONEY: clean
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.PHONY: clean remove
+
 clean:
-	@rm -f $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
 
-.PHONEY: remove
 remove: clean
-	@rm -f $(TARGET)
+	rm -f $(TARGET)

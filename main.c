@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include "renderer.h"
 #include "common.h"
+#include "font.h"
 
 // TODO audio module
 
@@ -16,17 +17,17 @@ Renderer renderer = {0}; // NOTE this has to be outside the main
 
 int main(void) {
     GLFWwindow* window;
-
-
+    
     if (!glfwInit())
         return -1;
 
+    glfwWindowHint(GLFW_SAMPLES, 4);
+
     window = glfwCreateWindow(640, 480, "Lume", NULL, NULL);
-    if (!window)
-        {
-            glfwTerminate();
-            return -1;
-        }
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
     
     glfwMakeContextCurrent(window);
     glfwSwapInterval(0);
@@ -41,23 +42,27 @@ int main(void) {
         glfwTerminate();
         return -1;
     }
-    
+
+    glEnable(GL_MULTISAMPLE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     initRenderer(&renderer, screenWidth, screenHeight);
 
     initInput(window);
     initializeThemes();
-    
-    glfwWindowHint(GLFW_SAMPLES, 4); // Set 4x MSAA
-    glEnable(GL_MULTISAMPLE);
-    glEnable(GL_LINE_SMOOTH);
-    glEnable(GL_POLYGON_SMOOTH);
 
+    bool wireframe = false;
+
+    GLuint puta = loadTexture("./puta.jpg");
+    GLuint pengu = loadTexture("./pengu.png");
+
+    
+    initFreeType();
+    Font *jetb = loadFont("radon.otf", 100);
 
     while (!glfwWindowShouldClose(window)) {
-
         /* glPointSize(4.0f); */
-        /* glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); */
-
 
         if (isKeyDown(KEY_LEFT_ALT) || isKeyDown(KEY_RIGHT_ALT)) {
             if (isKeyPressed(KEY_EQUAL)) nextTheme();
@@ -68,13 +73,24 @@ int main(void) {
             reloadShaders(&renderer);
         }
 
+        if (isKeyPressed(KEY_W)) {
+            wireframe = !wireframe;
+        }
+        
+        if (wireframe) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        } else {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+
+        
         updateInput();  // NOTE This should be called after all key handling
-
-        reloadShaders(&renderer); // TODO reloading shaders every frame its bad,
-
+        reloadShaders(&renderer); // NOTE reloading shaders every frame its bad,
 
         glClearColor(CURRENT_THEME.bg.r, CURRENT_THEME.bg.g, CURRENT_THEME.bg.b, CURRENT_THEME.bg.a);
         glClear(GL_COLOR_BUFFER_BIT);
+
+
 
         useShader(&renderer, "circle");
         drawRectangle(&renderer, (Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, CURRENT_THEME.cursor);
@@ -82,15 +98,25 @@ int main(void) {
 
 
 
-
         useShader(&renderer, "simple");
 
         if (isGamepadButtonDown(GAMEPAD_BUTTON_A)) {
-            drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
-        } else {
             drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.cursor);
+        } else {
+            drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
         }
+
+        flush(&renderer);
         
+
+        useShader(&renderer, "texture");
+        drawTexture(&renderer, (Vec2f){400.0f, 400.0f,}, (Vec2f){300.0f, 300.0f}, pengu);
+        flush(&renderer);
+        drawTexture(&renderer, (Vec2f){200.0f, 200.0f,}, (Vec2f){300.0f, 300.0f}, puta);
+        flush(&renderer);
+        
+        useShader(&renderer, "text");
+        drawText(&renderer, jetb, "Hello, World!", 800.0, 800.0, 1.0, 1.0);
         flush(&renderer);
 
         
@@ -107,6 +133,7 @@ int main(void) {
                            (Vec2f){75.0f, 100.0f}, CURRENT_THEME.text,       (Vec2f){0.5f, 1.0f});
 
         flush(&renderer);
+
 
 
         glfwSwapBuffers(window);
