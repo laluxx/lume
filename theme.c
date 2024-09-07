@@ -11,7 +11,7 @@ Color hexToColor(const char* hex) {
     return (Color){r / 255.0f, g / 255.0f, b / 255.0f, 1.0f}; // Alpha is set to 1.0f (fully opaque)
 }
 
-void initializeThemes() {
+void initThemes() {
     themes[0] = (Theme){
         .name = "dark",
         .bg = hexToColor("#18181B"),

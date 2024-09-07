@@ -7,13 +7,14 @@
 #include "renderer.h"
 #include "common.h"
 #include "font.h"
+#include "window.h"
 
 // TODO audio module
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void old_framebuffer_size_callback(GLFWwindow* window, int width, int height);
 
 int screenWidth, screenHeight;
-Renderer renderer = {0}; // NOTE this has to be outside the main
+/* Renderer renderer = {0}; // NOTE this has to be outside the main */
 
 int main(void) {
     GLFWwindow* window;
@@ -33,7 +34,7 @@ int main(void) {
     glfwSwapInterval(0);
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
 
-    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetFramebufferSizeCallback(window, old_framebuffer_size_callback);
 
     // Initialize GLEW
     GLenum err = glewInit();
@@ -43,14 +44,14 @@ int main(void) {
         return -1;
     }
 
-    glEnable(GL_MULTISAMPLE);
+    /* glEnable(GL_MULTISAMPLE); */
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    initRenderer(&renderer, screenWidth, screenHeight);
+    initRenderer(screenWidth, screenHeight);
 
     initInput(window);
-    initializeThemes();
+    initThemes();
 
     bool wireframe = false;
 
@@ -62,6 +63,7 @@ int main(void) {
     Font *jetb = loadFont("radon.otf", 100);
 
     while (!glfwWindowShouldClose(window)) {
+        
         /* glPointSize(4.0f); */
 
         if (isKeyDown(KEY_LEFT_ALT) || isKeyDown(KEY_RIGHT_ALT)) {
@@ -70,7 +72,7 @@ int main(void) {
         }
 
         if (isKeyPressed(KEY_R)) {
-            reloadShaders(&renderer);
+            reloadShaders();
         }
 
         if (isKeyPressed(KEY_W)) {
@@ -85,54 +87,52 @@ int main(void) {
 
         
         updateInput();  // NOTE This should be called after all key handling
-        reloadShaders(&renderer); // NOTE reloading shaders every frame its bad,
+        reloadShaders(); // NOTE reloading shaders every frame its bad,
 
         glClearColor(CURRENT_THEME.bg.r, CURRENT_THEME.bg.g, CURRENT_THEME.bg.b, CURRENT_THEME.bg.a);
         glClear(GL_COLOR_BUFFER_BIT);
 
 
 
-        useShader(&renderer, "circle");
-        drawRectangle(&renderer, (Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, CURRENT_THEME.cursor);
-        flush(&renderer);
+        useShader("circle");
+        drawRectangle((Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, CURRENT_THEME.cursor);
+        flush();
 
 
 
-        useShader(&renderer, "simple");
+        useShader("simple");
 
         if (isGamepadButtonDown(GAMEPAD_BUTTON_A)) {
-            drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.cursor);
+            drawRectangle((Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.cursor);
         } else {
-            drawRectangle(&renderer, (Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
+            drawRectangle((Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
         }
 
-        flush(&renderer);
+        flush();
         
 
-        useShader(&renderer, "texture");
-        drawTexture(&renderer, (Vec2f){400.0f, 400.0f,}, (Vec2f){300.0f, 300.0f}, pengu);
-        flush(&renderer);
-        drawTexture(&renderer, (Vec2f){200.0f, 200.0f,}, (Vec2f){300.0f, 300.0f}, puta);
-        flush(&renderer);
+        useShader("texture");
+        drawTexture((Vec2f){400.0f, 400.0f,}, (Vec2f){300.0f, 300.0f}, pengu);
+        flush();
+        drawTexture((Vec2f){200.0f, 200.0f,}, (Vec2f){300.0f, 300.0f}, puta);
+        flush();
         
-        useShader(&renderer, "text");
-        drawText(&renderer, jetb, "Hello, World!", 800.0, 800.0, 1.0, 1.0);
-        flush(&renderer);
+
+        drawText(jetb, "Hello, World!", 800.0, 800.0, 1.0, 1.0);
 
         
-        useShader(&renderer, "wave");
+        useShader("wave");
   
-        drawTriangle(&renderer, CURRENT_THEME.cursor,
+        drawTriangle(CURRENT_THEME.cursor,
                      (Vec2f){100.0f, 100.0f},
                      (Vec2f){200.0f, 100.0f},
                      (Vec2f){150.0f, 200.0f});
 
-        drawTriangleColors(&renderer,
-                           (Vec2f){100.0f, 50.0f}, CURRENT_THEME.minibuffer, (Vec2f){1.0f, 0.0f},
+        drawTriangleColors((Vec2f){100.0f, 50.0f}, CURRENT_THEME.minibuffer, (Vec2f){1.0f, 0.0f},
                            (Vec2f){50.0f, 50.0f},  CURRENT_THEME.cursor,     (Vec2f){0.0f, 0.0f},
                            (Vec2f){75.0f, 100.0f}, CURRENT_THEME.text,       (Vec2f){0.5f, 1.0f});
 
-        flush(&renderer);
+        flush();
 
 
 
@@ -140,20 +140,20 @@ int main(void) {
         glfwPollEvents();
     }
 
-    freeRenderer(&renderer);
+    freeRenderer();
     glfwTerminate();
     return 0;
 }
 
 
-bool printWindowSize = true;
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+bool oldPrintWindowSize = true;
+void old_framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     screenWidth = width;
     screenHeight = height;
-    if(printWindowSize){
+    if(oldPrintWindowSize){
         printf("Width: %d Height: %d\n", screenWidth, screenHeight);
     }
     glViewport(0, 0, width, height);
     // Update the projection matrix
-    updateProjectionMatrix(&renderer, screenWidth, screenHeight);
+    updateProjectionMatrix(screenWidth, screenHeight);
 }

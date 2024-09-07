@@ -31,7 +31,8 @@ typedef struct {
 
 void initFreeType();
 Font* loadFont(const char* fontPath, int fontSize);
-void drawText(Renderer *renderer, Font* font, const char* text, float x, float y, float sx, float sy);
+void drawText(Font* font, const char* text, float x, float y, float sx, float sy);
+float getFontHeight(Font* font);
 void freeFont(Font* font);
 
 #endif // FONT_H

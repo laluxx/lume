@@ -1,0 +1,6 @@
+#+TITLE: README.org
+#+AUTHOR: Laluxx
+#+DATE: [2024-09-07]
+#+OPTIONS: toc:2
+
+TODO User defined callbacks

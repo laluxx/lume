@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-
+// TODO loadFontEx
 FT_Library ft;
 
 void initFreeType() {
@@ -25,6 +25,8 @@ Font* loadFont(const char* fontPath, int fontSize) {
         fprintf(stderr, "Failed to load font: %s\n", fontPath);
         return NULL;
     }
+   
+    printf("[LOADED FONT] %s %i\n", fontPath, fontSize);
 
     FT_Set_Pixel_Sizes(face, 0, fontSize);
 
@@ -96,11 +98,11 @@ Font* loadFont(const char* fontPath, int fontSize) {
     return font;
 }
 
-void drawText(Renderer *renderer, Font* font, const char* text, float x, float y, float sx, float sy) {
+void drawText(Font* font, const char* text, float x, float y, float sx, float sy) {
     const char *p;
-    useShader(renderer, "text");  // Assume "text" is a valid shader for text rendering
-    glBindTexture(GL_TEXTURE_2D, font->textureID);  // Set the font texture
-    glActiveTexture(GL_TEXTURE0);  // Use the first texture unit
+    useShader("text");
+    glBindTexture(GL_TEXTURE_2D, font->textureID);
+    glActiveTexture(GL_TEXTURE0);
 
     for (p = text; *p; p++) {
         Character ch = font->characters[*p];
@@ -116,20 +118,21 @@ void drawText(Renderer *renderer, Font* font, const char* text, float x, float y
         Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty};
         Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f};
 
-        Color white = {255, 255, 255, 255}; // Assuming white color for text
 
-        // Draw each character as two triangles
-        drawTriangleColors(renderer, (Vec2f){xpos, ypos + h}, white, uv1,
-                           (Vec2f){xpos, ypos}, white, uv2,
-                           (Vec2f){xpos + w, ypos}, white, uv3);
-        drawTriangleColors(renderer, (Vec2f){xpos, ypos + h}, white, uv1,
-                           (Vec2f){xpos + w, ypos}, white, uv3,
-                           (Vec2f){xpos + w, ypos + h}, white, uv4);
+        // Draw each character NOTE BLACK is defined somehow
+        drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1,
+                           (Vec2f){xpos, ypos}, BLACK, uv2,
+                           (Vec2f){xpos + w, ypos}, BLACK, uv3);
+        
+        drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1,
+                           (Vec2f){xpos + w, ypos}, BLACK, uv3,
+                           (Vec2f){xpos + w, ypos + h}, BLACK, uv4);
 
         // Advance cursors for next glyph
         x += ch.ax * sx;
         y += ch.ay * sy;
     }
+    flush();
 }
 
 
@@ -137,3 +140,42 @@ void freeFont(Font* font) {
     glDeleteTextures(1, &font->textureID);
     free(font);
 }
+
+float getFontHeight(Font* font) {
+    float max_height = 0;
+    for (int i = 0; i < MAX_CHARACTERS; i++) {
+        if (font->characters[i].bh > max_height) {
+            max_height = font->characters[i].bh;
+        }
+    }
+    return max_height;
+}
+
+
+
+/* static double lastTime = 0.0; */
+/* static int frameCount = 0; */
+/* static char fpsText[256]; */
+
+/* void initFPS() { */
+/*     lastTime = glfwGetTime(); */
+/*     frameCount = 0; */
+/*     sprintf(fpsText, "FPS: %d", 0); */
+/* } */
+
+/* void updateFPS() { */
+/*     double currentTime = glfwGetTime(); */
+/*     frameCount++; */
+/*     if (currentTime - lastTime >= 1.0) { // If a second has passed */
+/*         // Display the frame count here any way you like or simply store it */
+/*         sprintf(fpsText, "FPS: %d", frameCount); */
+
+/*         frameCount = 0; */
+/*         lastTime += 1.0; */
+/*     } */
+/* } */
+
+
+/* void drawFPS(Font* font, float x, float y, float sx, float sy) { */
+/*     drawText(font, fpsText, x, y, sx, sy); */
+/* } */

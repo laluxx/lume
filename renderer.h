@@ -38,36 +38,74 @@ typedef struct {
     size_t vertexCount;
 } Renderer;
 
-void initRenderer(Renderer *renderer, int screenWidth, int screenHeight);
-void freeRenderer(Renderer *renderer);
+extern Renderer renderer;
 
-int newShader(Renderer *renderer,
-              const char *vertexPath, const char *fragmentPath,
+void initRenderer(int screenWidth, int screenHeight);
+void freeRenderer();
+
+
+int newShaderString(const char *vertexSrc, const char *fragmentSrc,
+                    const char *shaderName);
+
+int newShader(const char *vertexPath, const char *fragmentPath,
               const char *shaderName);
 
-void initShaders(Renderer *renderer);
-void useShader(Renderer *renderer, const char *shaderName);
-void flush(Renderer *renderer);
+void initShaders();
+void useShader(const char *shaderName);
+void flush();
 
-void drawVertex(Renderer *renderer, Vec2f position, Color color, Vec2f uv);
+void drawVertex(Vec2f position, Color color, Vec2f uv);
 
-void drawTriangle(Renderer *renderer, Color color,
+void drawTriangle(Color color,
                   Vec2f p1, Vec2f p2, Vec2f p3);
 
-void drawTriangleColors(Renderer *renderer,
-                        Vec2f p1, Color c1, Vec2f uv1,
+void drawTriangleColors(Vec2f p1, Color c1, Vec2f uv1,
                         Vec2f p2, Color c2, Vec2f uv2,
                         Vec2f p3, Color c3, Vec2f uv3);
 
-void drawRectangle(Renderer *renderer, Vec2f position, Vec2f size, Color color);
+void drawRectangle(Vec2f position, Vec2f size, Color color);
 
-void updateProjectionMatrix(Renderer *renderer, int width, int height);
+void updateProjectionMatrix(int width, int height);
 
-void deleteShaders(Renderer *renderer);
-void reloadShaders(Renderer *renderer);
+void deleteShaders();
+void reloadShaders();
 
 GLuint loadTexture(const char* filepath);
-void drawTexture(Renderer *renderer, Vec2f position, Vec2f size, GLuint textureID);
+void drawTexture(Vec2f position, Vec2f size, GLuint textureID);
+
+
+// TODO Hardcoded in lib shaders
+/* const char* simple_vert = */
+/*     "#version 330 core\n" */
+/*     "layout (location = 0) in vec3 aPos;\n" */
+/*     "layout (location = 1) in vec3 aColor;\n" */
+/*     "layout (location = 2) in vec2 aTexCoord; // UV coordinates\n" */
+/*     "\n" */
+/*     "uniform mat4 projectionMatrix;\n" */
+/*     "\n" */
+/*     "out vec3 ourColor;\n" */
+/*     "out vec2 TexCoord; // Pass UV coordinates to the fragment shader\n" */
+/*     "\n" */
+/*     "void main()\n" */
+/*     "{\n" */
+/*     "    gl_Position = projectionMatrix * vec4(aPos, 1.0);\n" */
+/*     "    ourColor = aColor;\n" */
+/*     "    TexCoord = aTexCoord; // Pass UV coordinates\n" */
+/*     "}\n"; */
+
+
+/* const char* simple_frag = */
+/*     "#version 330 core\n" */
+/*     "out vec4 FragColor;\n" */
+/*     "\n" */
+/*     "in vec3 ourColor;\n" */
+/*     "in vec2 TexCoord; // Receive UV coordinates\n" */
+/*     "\n" */
+/*     "void main()\n" */
+/*     "{\n" */
+/*     "    // For now, just output the color. This shader doesn't yet use TexCoord.\n" */
+/*     "    FragColor = vec4(ourColor, 1.0);\n" */
+/*     "}\n"; */
 
 
 

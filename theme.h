@@ -19,7 +19,7 @@ extern int currentThemeIndex;
 #define CURRENT_THEME (themes[currentThemeIndex])
 
 Color hexToColor(const char* hexStr);
-void initializeThemes();
+void initThemes();
 void nextTheme();
 void previousTheme();
 

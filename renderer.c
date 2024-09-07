@@ -8,6 +8,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+// TODO drawCricle()
+
+Renderer renderer = {0};
 
 GLuint loadTexture(const char *filepath) {
     stbi_set_flip_vertically_on_load(1);
@@ -37,7 +40,7 @@ GLuint loadTexture(const char *filepath) {
 }
 
 
-void drawTexture(Renderer *renderer, Vec2f position, Vec2f size, GLuint textureID) {
+void drawTexture(Vec2f position, Vec2f size, GLuint textureID) {
 
     /* glActiveTexture(GL_TEXTURE0); */
 
@@ -53,12 +56,11 @@ void drawTexture(Renderer *renderer, Vec2f position, Vec2f size, GLuint textureI
     Vec2f uv3 = {0.0f, 1.0f};
     Vec2f uv4 = {1.0f, 1.0f};
 
-    drawTriangleColors(renderer,
-                       p1, (Color){255, 255, 255, 1.0}, uv1,
+    drawTriangleColors(p1, (Color){255, 255, 255, 1.0}, uv1,
                        p3, (Color){255, 255, 255, 1.0}, uv3,
                        p2, (Color){255, 255, 255, 1.0}, uv2);
-    drawTriangleColors(renderer,
-                       p2, (Color){255, 0, 0, 1.0}, uv2,
+    
+    drawTriangleColors(p2, (Color){255, 0, 0, 1.0}, uv2,
                        p3, (Color){255, 0, 0, 1.0}, uv3,
                        p4, (Color){255, 0, 0, 1.0}, uv4);
 
@@ -71,13 +73,13 @@ static char *readFile(const char *filePath);
 static GLuint compileShader(const char *source, GLenum shaderType);
 static GLuint linkProgram(const char *simpleVertex, const char *simpleFragment);
 
-void initRenderer(Renderer *renderer, int screenWidth, int screenHeight) {
+void initRenderer(int screenWidth, int screenHeight) {
     // Initialize VAO and VBO
-    glGenVertexArrays(1, &renderer->vao);
-    glGenBuffers(1, &renderer->vbo);
-    glBindVertexArray(renderer->vao);
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertices), NULL, GL_DYNAMIC_DRAW);
+    glGenVertexArrays(1, &renderer.vao);
+    glGenBuffers(1, &renderer.vbo);
+    glBindVertexArray(renderer.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(renderer.vertices), NULL, GL_DYNAMIC_DRAW);
 
     // Vertex attribute setup
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)0);
@@ -91,46 +93,101 @@ void initRenderer(Renderer *renderer, int screenWidth, int screenHeight) {
 
     // Shader initialization
     int initialShaderCapacity = 4;
-    renderer->shaders = malloc(sizeof(Shader) * initialShaderCapacity);
-    if (!renderer->shaders) {
+    renderer.shaders = malloc(sizeof(Shader) * initialShaderCapacity);
+    if (!renderer.shaders) {
         fprintf(stderr, "Failed to allocate memory for shaders\n");
         exit(1);
     }
-    renderer->numShaders = 0;
-    renderer->maxShaders = initialShaderCapacity;
+    renderer.numShaders = 0;
+    renderer.maxShaders = initialShaderCapacity;
 
     // Load initial shaders
-    initShaders(renderer);
+    initShaders();
 
     // Set up the projection matrix
-    updateProjectionMatrix(renderer, screenWidth, screenHeight);
+    updateProjectionMatrix(screenWidth, screenHeight);
 }
 
-void freeRenderer(Renderer *renderer) {
+void freeRenderer() {
     // Delete shaders
-    for (int i = 0; i < renderer->numShaders; i++) {
-        glDeleteProgram(renderer->shaders[i].shaderID);
-        free(renderer->shaders[i].name);
+    for (int i = 0; i < renderer.numShaders; i++) {
+        glDeleteProgram(renderer.shaders[i].shaderID);
+        free(renderer.shaders[i].name);
     }
-    free(renderer->shaders); // Free the shader array itself
+    free(renderer.shaders); // Free the shader array itself
 
     // Delete VBO and VAO
-    glDeleteBuffers(1, &renderer->vbo);
-    glDeleteVertexArrays(1, &renderer->vao);
+    glDeleteBuffers(1, &renderer.vbo);
+    glDeleteVertexArrays(1, &renderer.vao);
 }
 
-int newShader(Renderer *renderer,
-              const char *vertexPath, const char *fragmentPath,
+
+int newShaderString(const char *vertexSrc, const char *fragmentSrc, const char *shaderName) {
+    if (renderer.numShaders >= renderer.maxShaders) {
+        // Optionally resize the array
+        int newCapacity = renderer.maxShaders * 2;
+        Shader *newArray = realloc(renderer.shaders, sizeof(Shader) * newCapacity);
+        if (!newArray) {
+            fprintf(stderr, "Failed to allocate memory for new shaders\n");
+            return -1; // Allocation failed
+        }
+        renderer.shaders = newArray;
+        renderer.maxShaders = newCapacity;
+    }
+
+    GLuint vertexShader = compileShader(vertexSrc, GL_VERTEX_SHADER);
+    GLuint fragmentShader = compileShader(fragmentSrc, GL_FRAGMENT_SHADER);
+
+    if (vertexShader == 0 || fragmentShader == 0) {
+        if (vertexShader != 0) glDeleteShader(vertexShader);
+        if (fragmentShader != 0) glDeleteShader(fragmentShader);
+        return -1; // Shader compilation failed
+    }
+
+    GLuint program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+
+    GLint success;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        char infoLog[512];
+        glGetProgramInfoLog(program, 512, NULL, infoLog);
+        fprintf(stderr, "ERROR::SHADER_PROGRAM_LINKING_FAILED\n%s\n", infoLog);
+        glDeleteProgram(program); // Don't leak the program
+        glDeleteShader(vertexShader);
+        glDeleteShader(fragmentShader);
+        return -1;
+    }
+
+    // Detach and delete shaders after linking
+    glDetachShader(program, vertexShader);
+    glDetachShader(program, fragmentShader);
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    Shader newShader = {
+        .shaderID = program,
+        .name = strdup(shaderName) // Duplicate name string
+    };
+    renderer.shaders[renderer.numShaders++] = newShader;
+
+    return renderer.numShaders - 1; // Return the index of the new shader
+}
+
+// TODO Make a version that takes the renderer 2 strings and the name
+int newShader(const char *vertexPath, const char *fragmentPath,
               const char *shaderName)
 {
-    if (renderer->numShaders >= renderer->maxShaders) {
+    if (renderer.numShaders >= renderer.maxShaders) {
         // Optionally resize the array
-        int newCapacity = renderer->maxShaders * 2;
-        Shader *newArray = realloc(renderer->shaders, sizeof(Shader) * newCapacity);
+        int newCapacity = renderer.maxShaders * 2;
+        Shader *newArray = realloc(renderer.shaders, sizeof(Shader) * newCapacity);
         if (!newArray)
             return -1; // Allocation failed
-        renderer->shaders = newArray;
-        renderer->maxShaders = newCapacity;
+        renderer.shaders = newArray;
+        renderer.maxShaders = newCapacity;
     }
 
     char *vertexSource = readFile(vertexPath);
@@ -146,84 +203,81 @@ int newShader(Renderer *renderer,
         .shaderID = program,
         .name = strdup(shaderName) // Duplicate name string
     };
-    renderer->shaders[renderer->numShaders++] = newShader;
-    return renderer->numShaders - 1; // Return the index of the new shader
+    renderer.shaders[renderer.numShaders++] = newShader;
+    return renderer.numShaders - 1; // Return the index of the new shader
 }
 
 
-void deleteShaders(Renderer *renderer) {
-    for (int i = 0; i < renderer->numShaders; i++) {
-        glDeleteProgram(renderer->shaders[i].shaderID);
-        free(renderer->shaders[i].name);
-        renderer->shaders[i].shaderID = 0;
+void deleteShaders() {
+    for (int i = 0; i < renderer.numShaders; i++) {
+        glDeleteProgram(renderer.shaders[i].shaderID);
+        free(renderer.shaders[i].name);
+        renderer.shaders[i].shaderID = 0;
     }
-    renderer->numShaders = 0;
+    renderer.numShaders = 0;
     // renderer->activeShader = 0;
 }
 
-void reloadShaders(Renderer *renderer) {
-    deleteShaders(renderer);
-    initShaders(renderer);
+void reloadShaders() {
+    deleteShaders();
+    initShaders();
 }
 
-void initShaders(Renderer *renderer) {
-    newShader(renderer, "./shaders/simple.vert", "./shaders/simple.frag",  "simple");
-    newShader(renderer, "./shaders/wave.vert",   "./shaders/cool.frag",    "wave");
-    newShader(renderer, "./shaders/simple.vert", "./shaders/circle.frag",  "circle");
-    newShader(renderer, "./shaders/simple.vert",   "./shaders/texture.frag", "texture");
-    newShader(renderer, "./shaders/simple.vert",   "./shaders/text.frag",    "text");
+void initShaders() {
+    newShader("./shaders/simple.vert", "./shaders/simple.frag",  "simple");
+    newShader("./shaders/wave.vert",   "./shaders/cool.frag",    "wave");
+    newShader("./shaders/simple.vert", "./shaders/circle.frag",  "circle");
+    newShader("./shaders/simple.vert", "./shaders/texture.frag", "texture");
+    newShader("./shaders/simple.vert", "./shaders/text.frag",    "text");
 }
 
-void useShader(Renderer *renderer, const char *shaderName) {
-    for (int i = 0; i < renderer->numShaders; i++) {
-        if (strcmp(renderer->shaders[i].name, shaderName) == 0) {
-            renderer->activeShader = renderer->shaders[i].shaderID;
-            glUseProgram(renderer->activeShader);
+void useShader(const char *shaderName) {
+    for (int i = 0; i < renderer.numShaders; i++) {
+        if (strcmp(renderer.shaders[i].name, shaderName) == 0) {
+            renderer.activeShader = renderer.shaders[i].shaderID;
+            glUseProgram(renderer.activeShader);
             break;
         }
     }
 }
 
+void flush() {
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * renderer.vertexCount, renderer.vertices, GL_DYNAMIC_DRAW);
 
-bool invert = false;
-
-void flush(Renderer *renderer) {
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * renderer->vertexCount, renderer->vertices, GL_DYNAMIC_DRAW);
-
-    glUseProgram(renderer->activeShader);
+    glUseProgram(renderer.activeShader);
 
 
     // Update projection matrix
     // TODO move uniform update into a function that run
     // only once per frame
-    GLint projMatrixLocation = glGetUniformLocation(renderer->activeShader, "projectionMatrix");
+    GLint projMatrixLocation = glGetUniformLocation(renderer.activeShader, "projectionMatrix");
     if (projMatrixLocation != -1) {
-        glUniformMatrix4fv(projMatrixLocation, 1, GL_FALSE, renderer->projectionMatrix);
+        glUniformMatrix4fv(projMatrixLocation, 1, GL_FALSE, renderer.projectionMatrix);
     } else {
         fprintf(stderr, "Could not find projectionMatrix uniform location\n");
     }
 
     // TODO is renderer->activeShader correct here ?
     // what if the active shader doesn't use the time uniform at all but the next shader does
-    GLint timeLocation = glGetUniformLocation(renderer->activeShader, "time");
+    GLint timeLocation = glGetUniformLocation(renderer.activeShader, "time");
     if (timeLocation != -1) {
         float currentTime = glfwGetTime();
         glUniform1f(timeLocation, currentTime);
     }
 
-    glBindVertexArray(renderer->vao);
-    glDrawArrays(GL_TRIANGLES, 0, renderer->vertexCount);
+    glBindVertexArray(renderer.vao);
+    glDrawArrays(GL_TRIANGLES, 0, renderer.vertexCount);
 
-    renderer->vertexCount = 0;
+    renderer.vertexCount = 0;
 }
 
-void drawVertex(Renderer *renderer, Vec2f position, Color color, Vec2f uv) {
-    if (renderer->vertexCount >= VERTICIES_CAP) {
-        flush(renderer);
+void drawVertex(Vec2f position, Color color, Vec2f uv) {
+    if (renderer.vertexCount >= VERTICIES_CAP) {
+        flush();
     }
 
-    Vertex *vertex = &renderer->vertices[renderer->vertexCount++];
+    Vertex *vertex = &renderer.vertices[renderer.vertexCount++];
     vertex->x = position.x;
     vertex->y = position.y;
     vertex->z = 0.0f; // Z is always 0 for 2D
@@ -235,31 +289,30 @@ void drawVertex(Renderer *renderer, Vec2f position, Color color, Vec2f uv) {
     vertex->v = uv.y;
 }
 
-void drawTriangleColors(Renderer *renderer,
-                        Vec2f p1, Color c1, Vec2f uv1,
+void drawTriangleColors(Vec2f p1, Color c1, Vec2f uv1,
                         Vec2f p2, Color c2, Vec2f uv2,
                         Vec2f p3, Color c3, Vec2f uv3)
 {
-    drawVertex(renderer, p1, c1, uv1);
-    drawVertex(renderer, p2, c2, uv2);
-    drawVertex(renderer, p3, c3, uv3);
+    drawVertex(p1, c1, uv1);
+    drawVertex(p2, c2, uv2);
+    drawVertex(p3, c3, uv3);
 }
 
 
-void drawTriangle(Renderer *renderer, Color color,
+void drawTriangle(Color color,
                   Vec2f p1, Vec2f p2, Vec2f p3)
 {
     Vec2f uv1 = {0.0f, 0.0f};
     Vec2f uv2 = {1.0f, 0.0f};
     Vec2f uv3 = {0.5f, 1.0f};
 
-    drawVertex(renderer, p1, color, uv1);
-    drawVertex(renderer, p2, color, uv2);
-    drawVertex(renderer, p3, color, uv3);
+    drawVertex(p1, color, uv1);
+    drawVertex(p2, color, uv2);
+    drawVertex(p3, color, uv3);
 }
 
 // TODO drawQuad() where you specify the UV's quads are used for textures
-void drawRectangle(Renderer *renderer, Vec2f position, Vec2f size, Color color) {
+void drawRectangle(Vec2f position, Vec2f size, Color color) {
     Vec2f p1 = {position.x, position.y};
     Vec2f p2 = {position.x + size.x, position.y};
     Vec2f p3 = {position.x, position.y + size.y};
@@ -270,11 +323,11 @@ void drawRectangle(Renderer *renderer, Vec2f position, Vec2f size, Color color) 
     Vec2f uv3 = {0.0f, 1.0f};
     Vec2f uv4 = {1.0f, 1.0f};
 
-    drawTriangleColors(renderer, p1, color, uv1, p3, color, uv3, p2, color, uv2);
-    drawTriangleColors(renderer, p2, color, uv2, p3, color, uv3, p4, color, uv4);
+    drawTriangleColors(p1, color, uv1, p3, color, uv3, p2, color, uv2);
+    drawTriangleColors(p2, color, uv2, p3, color, uv3, p4, color, uv4);
 }
 
-void updateProjectionMatrix(Renderer *renderer, int width, int height) {
+void updateProjectionMatrix(int width, int height) {
     float near = -1.0f;
     float far = 1.0f;
     float left = 0.0f;
@@ -283,14 +336,14 @@ void updateProjectionMatrix(Renderer *renderer, int width, int height) {
     float bottom = 0.0f;
 
     // Set orthographic projection matrix (column-major order)
-    memset(renderer->projectionMatrix, 0, sizeof(renderer->projectionMatrix));
-    renderer->projectionMatrix[0] = 2.0f / (right - left);
-    renderer->projectionMatrix[5] = 2.0f / (top - bottom);
-    renderer->projectionMatrix[10] = -2.0f / (far - near);
-    renderer->projectionMatrix[12] = -(right + left) / (right - left);
-    renderer->projectionMatrix[13] = -(top + bottom) / (top - bottom);
-    renderer->projectionMatrix[14] = -(far + near) / (far - near);
-    renderer->projectionMatrix[15] = 1.0f;
+    memset(renderer.projectionMatrix, 0, sizeof(renderer.projectionMatrix));
+    renderer.projectionMatrix[0] = 2.0f / (right - left);
+    renderer.projectionMatrix[5] = 2.0f / (top - bottom);
+    renderer.projectionMatrix[10] = -2.0f / (far - near);
+    renderer.projectionMatrix[12] = -(right + left) / (right - left);
+    renderer.projectionMatrix[13] = -(top + bottom) / (top - bottom);
+    renderer.projectionMatrix[14] = -(far + near) / (far - near);
+    renderer.projectionMatrix[15] = 1.0f;
 }
 
 static char *readFile(const char *filePath) {
