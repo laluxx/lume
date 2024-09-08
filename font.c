@@ -1,5 +1,4 @@
 #include "font.h"
-/* #include "renderer.h" */
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -105,7 +104,8 @@ Font* loadFont(const char* fontPath, int fontSize) {
 }
 
 
-void drawTextEx(Font* font, const char* text, float x, float y, float sx, float sy, Color textColor, Color highlightColor, int highlightPos) {
+
+void drawTextEx(Font* font, const char* text, float x, float y, float sx, float sy, Color textColor, Color highlightColor, int highlightPos, bool cursorVisible) {
     const char *p;
     int charPos = 0; // Position index of the character in the string
     float initialX = x;  // Save the starting x coordinate to reset to it on new lines
@@ -136,11 +136,8 @@ void drawTextEx(Font* font, const char* text, float x, float y, float sx, float 
         Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty};
         Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f};
 
-        // Determine color based on highlight position
-        Color currentColor = textColor;
-        if (highlightPos >= 0 && charPos == highlightPos) {
-            currentColor = highlightColor;
-        }
+        // Determine color based on highlight position and cursor visibility
+        Color currentColor = (highlightPos >= 0 && charPos == highlightPos && cursorVisible) ? highlightColor : textColor;
 
         // Draw each character with the appropriate color
         drawTriangleColors((Vec2f){xpos, ypos + h}, currentColor, uv1,
@@ -160,7 +157,7 @@ void drawTextEx(Font* font, const char* text, float x, float y, float sx, float 
 void drawText(Font* font, const char* text, float x, float y, Color textColor) {
     float sx = 1.0;
     float sy = 1.0;
-    drawTextEx(font, text, x, y, sx, sy, textColor, BLACK, -1);
+    drawTextEx(font, text, x, y, sx, sy, textColor, BLACK, -1, false);
 }
 
 

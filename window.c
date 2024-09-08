@@ -71,7 +71,7 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    initInput(g_window);
+    initInput();
     initRenderer(width, height);
     initFreeType();
     return g_window;
@@ -119,6 +119,10 @@ int getScreenHeight() {
     int width, height;
     glfwGetFramebufferSize(g_window, &width, &height);
     return height;
+}
+
+double getTime() {
+    return glfwGetTime();
 }
 
 

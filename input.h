@@ -18,10 +18,7 @@ extern KeyInputCallback currentKeyInputCallback;
 void registerKeyInputCallback(KeyInputCallback callback);
 
 
-
-extern bool printKeyInfo;
-
-void initInput(GLFWwindow* window);
+void initInput();
 void updateInput();
 int isKeyDown(int key);
 int isKeyPressed(int key);

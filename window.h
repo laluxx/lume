@@ -11,9 +11,11 @@ void beginDrawing();
 void clearBackground(Color color);
 void endDrawing();
 void closeWindow();
-
 int getScreenWidth();
 int getScreenHeight();
+
+double getTime();
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void char_callback(GLFWwindow* window, unsigned int codepoint);
 

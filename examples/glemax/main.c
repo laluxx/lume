@@ -12,11 +12,17 @@
 // and a reference to the active buffer
 // TODO add readonly bool to the Buffer
 
+bool electric_pair_mode = true;
+bool blink_cursor_mode = true;
+float blink_cursor_delay = 0.5; // Seconds of idle time before the first blink of the cursor.
+float blink_cursor_interval = 0.5; // Lenght of cursor blink interval in seconds.
+int blink_cursor_blinks = 10; // How many times to blink before stopping.
+    
 typedef struct {
     char *content;   // Dynamic array to hold the text content
     size_t size;     // Current size of the content
     size_t capacity; // Allocated capacity of the content
-    int point;       // Cursor position (Emacs "point")
+    size_t point;    // Cursor position
 } Buffer;
 
 void initBuffer(Buffer *buffer);
@@ -76,32 +82,89 @@ void insertChar(Buffer * buffer, char c) {
     buffer->content[buffer->size] = '\0';
 }
 
+static double lastBlinkTime = 0.0;  // Last time the cursor state changed
+static bool cursorVisible = true;  // Initial state of the cursor visibility
+
+static int blinkCount = 0;  // Counter for number of blinks
+
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
     int lineCount = 0;
     float cursorX = x;
 
-    for (int i = 0; i < buffer->point; i++) {
+    for (size_t i = 0; i < buffer->point; i++) {
         if (buffer->content[i] == '\n') {
-            lineCount++; // Increment line count on newline
-            cursorX = x; // Reset cursor position to the start of the new line
+            lineCount++;
+            cursorX = x;
         } else {
-            cursorX += getCharacterWidth(font, buffer->content[i]); // Use actual character width
+            cursorX += getCharacterWidth(font, buffer->content[i]);
         }
     }
 
-    float cursorWidth;
-    if (buffer->point < buffer->size && buffer->content[buffer->point] != '\n') {
-        cursorWidth = getCharacterWidth(font, buffer->content[buffer->point]);
-    } else {
-        // Default to the width of a space when at the end of a line or at the end of the buffer
-        cursorWidth = getCharacterWidth(font, ' ');
-    }
+    float cursorWidth = buffer->point < buffer->size && buffer->content[buffer->point] != '\n'
+        ? getCharacterWidth(font, buffer->content[buffer->point])
+        : getCharacterWidth(font, ' ');
 
     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent};
-    Vec2f cursorSize = {cursorWidth, (float)(font->ascent + font->descent)};
+    Vec2f cursorSize = {cursorWidth, font->ascent + font->descent};
 
-    drawRectangle(cursorPosition, cursorSize, color);
+    if (blink_cursor_mode && blinkCount < blink_cursor_blinks) {
+        double currentTime = getTime();
+        if (currentTime - lastBlinkTime >= (cursorVisible ? blink_cursor_interval : blink_cursor_delay)) {
+            cursorVisible = !cursorVisible;
+            lastBlinkTime = currentTime;
+            if (cursorVisible) {
+                blinkCount++;  // Increment only on visibility toggle to visible
+            }
+        }
+
+        if (cursorVisible) {
+            drawRectangle(cursorPosition, cursorSize, color);
+        }
+    } else {
+        drawRectangle(cursorPosition, cursorSize, color);  // Always draw cursor if not blinking
+    }
 }
+
+
+
+
+/* void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) { */
+/*     int lineCount = 0; */
+/*     float cursorX = x; */
+
+
+/*     // Calculate cursor position */
+/*     for (size_t i = 0; i < buffer->point; i++) { */
+/*         if (buffer->content[i] == '\n') { */
+/*             lineCount++; */
+/*             cursorX = x; */
+/*         } else { */
+/*             cursorX += getCharacterWidth(font, buffer->content[i]); */
+/*         } */
+/*     } */
+
+/*     float cursorWidth = buffer->point < buffer->size && buffer->content[buffer->point] != '\n' */
+/*         ? getCharacterWidth(font, buffer->content[buffer->point]) */
+/*         : getCharacterWidth(font, ' '); */
+
+/*     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent}; */
+/*     Vec2f cursorSize = {cursorWidth, font->ascent + font->descent}; */
+
+/*     if (blink_cursor_mode) { */
+/*         double currentTime = getTime(); */
+/*         if (currentTime - lastBlinkTime >= (cursorVisible ? blink_cursor_interval : blink_cursor_delay)) { */
+/*             cursorVisible = !cursorVisible;  // Toggle cursor visibility */
+/*             lastBlinkTime = currentTime; */
+/*         } */
+
+/*         if (cursorVisible) { */
+/*             drawRectangle(cursorPosition, cursorSize, color); */
+/*         } */
+/*     } else { */
+/*         drawRectangle(cursorPosition, cursorSize, color); */
+/*     } */
+/* } */
+
 
 
 
@@ -114,16 +177,24 @@ void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
 /*             lineCount++; // Increment line count on newline */
 /*             cursorX = x; // Reset cursor position to the start of the new line */
 /*         } else { */
-/*             cursorX += getFontWidth(font); // NOTE monospace assumption */
+/*             cursorX += getCharacterWidth(font, buffer->content[i]); // Use actual character width */
 /*         } */
 /*     } */
 
-/*     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent}; */
+/*     float cursorWidth; */
+/*     if (buffer->point < buffer->size && buffer->content[buffer->point] != '\n') { */
+/*         cursorWidth = getCharacterWidth(font, buffer->content[buffer->point]); */
+/*     } else { */
+/*         // Default to the width of a space when at the end of a line or at the end of the buffer */
+/*         cursorWidth = getCharacterWidth(font, ' '); */
+/*     } */
 
-/*     Vec2f cursorSize = {getFontWidth(font), (float)(font->ascent + font->descent)}; */
+/*     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent}; */
+/*     Vec2f cursorSize = {cursorWidth, (float)(font->ascent + font->descent)}; */
 
 /*     drawRectangle(cursorPosition, cursorSize, color); */
 /* } */
+
 
 void left_char(Buffer * buffer) {
     if (buffer->point > 0) {
@@ -206,7 +277,7 @@ void next_line(Buffer *buffer) {
     int columnPosition = 0;
 
     // Determine the end of the current line.
-    for (int i = buffer->point; i < buffer->size; i++) {
+    for (size_t i = buffer->point; i < buffer->size; i++) {
         if (buffer->content[i] == '\n') {
             currentLineEnd = i;
             nextLineStart = i + 1;
@@ -224,8 +295,8 @@ void next_line(Buffer *buffer) {
 
     // Calculate the point position in the next line, limited by the line's
     // length.
-    int targetPosition = nextLineStart + columnPosition;
-    for (int i = nextLineStart; i <= buffer->size; i++) {
+    size_t targetPosition = nextLineStart + columnPosition;
+    for (size_t i = nextLineStart; i <= buffer->size; i++) {
         if (buffer->content[i] == '\n' || i == buffer->size) {
             if (targetPosition > i)
                 targetPosition = i;
@@ -246,7 +317,7 @@ void move_beginning_of_line(Buffer * buffer) {
 }
 
 void move_end_of_line(Buffer *buffer) {
-    for (int i = buffer->point; i < buffer->size; i++) {
+    for (size_t i = buffer->point; i < buffer->size; i++) {
         if (buffer->content[i] == '\n') {
             buffer->point = i;
             return;
@@ -272,7 +343,7 @@ void kill_line(Buffer *buffer) {
     if (buffer->point >= buffer->size)
         return; // Nothing to delete if at the end of the buffer
 
-    int endOfLine = buffer->point;
+    size_t endOfLine = buffer->point;
     // Find the end of the current line or the buffer
     while (endOfLine < buffer->size && buffer->content[endOfLine] != '\n') {
         endOfLine++;
@@ -335,11 +406,11 @@ int main() {
 
     initThemes();
 
-    GLFWwindow *window = initWindow(sw, sh, "main.c - Glemax");
+    initWindow(sw, sh, "main.c - Glemax");
     registerTextInputCallback(textInputHandler);
     registerKeyInputCallback(keyInputHandler);
 
-    Font *font = loadFont("jetb.ttf", 100); // 14~16
+    Font *font = loadFont("jetb.ttf", 40); // 14~16
 
     initBuffer(&mainBuffer);
 
@@ -357,7 +428,7 @@ int main() {
         drawCursor(&mainBuffer, font, 0, sh - font->ascent, CT.cursor);
         flush();
 
-        drawTextEx(font, mainBuffer.content, 0, sh - font->ascent + font->descent, 1.0, 1.0, WHITE, CT.bg, mainBuffer.point);
+        drawTextEx(font, mainBuffer.content, 0, sh - font->ascent + font->descent, 1.0, 1.0, WHITE, CT.bg, mainBuffer.point, cursorVisible);
         
         endDrawing();
     }
@@ -368,19 +439,35 @@ int main() {
     return EXIT_SUCCESS;
 }
 
-
-
 void keyInputHandler(int key, int action, int mods) {
-    Buffer *buffer = &mainBuffer; // Assuming mainBuffer is globally accessible
+    Buffer *buffer = &mainBuffer; // TODO track the current Buffer
     if (!buffer) return;
 
-    bool shiftPressed = mods & GLFW_MOD_SHIFT;
+    /* bool shiftPressed = mods & GLFW_MOD_SHIFT; */
     bool ctrlPressed = mods & GLFW_MOD_CONTROL;
     bool altPressed = mods & GLFW_MOD_ALT;
 
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
         switch (key) {
         case KEY_BACKSPACE:
+            if (buffer->point > 0 && electric_pair_mode) {
+                // Check if backspacing over an opening character that has a closing pair right after
+                unsigned int currentChar = buffer->content[buffer->point - 1];
+                unsigned int nextChar = buffer->content[buffer->point];
+                if ((currentChar == '(' && nextChar == ')') ||
+                    (currentChar == '[' && nextChar == ']') ||
+                    (currentChar == '{' && nextChar == '}') ||
+                    (currentChar == '\'' && nextChar == '\'') ||
+                    (currentChar == '\"' && nextChar == '\"')) {
+                    // Remove both characters
+                    memmove(buffer->content + buffer->point - 1, buffer->content + buffer->point + 1, buffer->size - buffer->point - 1);
+                    buffer->size -= 2;
+                    buffer->point--;
+                    buffer->content[buffer->size] = '\0';
+                    break;
+                }
+            }
+            // Default backspace behavior when not deleting a pair
             if (buffer->point > 0) {
                 buffer->point--;
                 memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point);
@@ -441,63 +528,44 @@ void keyInputHandler(int key, int action, int mods) {
             break;
         }
     }
+    
+    if (blink_cursor_mode) {
+        blinkCount = 0;
+        lastBlinkTime = getTime();
+        cursorVisible = true;
+    }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-/* void keyInputHandler(int key, int action, int mods) { */
-/*     Buffer *buffer = &mainBuffer; // Assuming mainBuffer is globally accessible */
-/*     if (!buffer) return; */
-
-/*     // Handle control keys */
-/*     if (action == GLFW_PRESS || action == GLFW_REPEAT) { */
-/*         switch (key) { */
-/*         case GLFW_KEY_BACKSPACE: */
-/*             if (buffer->point > 0) { */
-/*                 buffer->point--; */
-/*                 memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point); */
-/*                 buffer->size--; */
-/*                 buffer->content[buffer->size] = '\0'; */
-/*             } */
-/*             break; */
-/*         case KEY_ENTER: */
-/*             insertChar(buffer, '\n'); */
-/*             break; */
-/*         case KEY_DOWN: */
-/*             next_line(buffer); */
-/*             break; */
-/*         case KEY_UP: */
-/*             previous_line(buffer); */
-/*             break; */
-/*         case KEY_LEFT: */
-/*             left_char(buffer); */
-/*             break; */
-/*         case KEY_RIGHT: */
-/*             right_char(buffer); */
-/*             break; */
-/*         case KEY_DELETE: */
-/*             delete_char(buffer); */
-/*             break; */
-/*             // Add more control keys as needed */
-/*         } */
-/*     } */
-/* } */
-
 void textInputHandler(unsigned int codepoint) {
-    Buffer *buffer = &mainBuffer; // Assuming 'mainBuffer' is your current
-    // text editing buffer
+    Buffer *buffer = &mainBuffer; // Assuming 'mainBuffer' is your current text editing buffer
     if (buffer != NULL) {
         insertUnicodeCharacter(buffer, codepoint);
+
+        // Handle auto pair
+        if (electric_pair_mode) {
+            switch (codepoint) {
+            case '(':
+                insertUnicodeCharacter(buffer, ')');
+                break;
+            case '[':
+                insertUnicodeCharacter(buffer, ']');
+                break;
+            case '{':
+                insertUnicodeCharacter(buffer, '}');
+                break;
+            case '\'':
+                insertUnicodeCharacter(buffer, '\''); // single quotes
+                break;
+            case '\"':
+                insertUnicodeCharacter(buffer, '\"'); // double quotes
+                break;
+            }
+
+            // Optionally, move the cursor back to between the pair of characters
+            if (codepoint == '(' || codepoint == '[' || codepoint == '{' || codepoint == '\'' || codepoint == '\"') {
+                buffer->point--;
+            }
+        }
     }
 }
 
