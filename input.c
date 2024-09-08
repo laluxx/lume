@@ -36,7 +36,7 @@ static void keyCallback(GLFWwindow* window, int key, int scancode, int action, i
 }
 
 void initInput(GLFWwindow* window) {
-    glfwSetKeyCallback(window, keyCallback);
+    /* glfwSetKeyCallback(window, keyCallback); */
     for (int i = 0; i < MAX_KEYS; i++) {
         keys[i] = 0;
         keysPressed[i] = 0;
@@ -64,12 +64,6 @@ static void gamepadUpdate() {
         }
     }
 }
-
-/* void updateInput() { */
-/*     for (int i = 0; i < MAX_KEYS; i++) { */
-/*         keysPressed[i] = 0;  // Reset only the pressed state */
-/*     } */
-/* } */
 
 void updateInput() {
     for (int i = 0; i < MAX_KEYS; i++) {
@@ -106,3 +100,21 @@ int isKeyPressed(int key) {
         return 0;
     return keysPressed[key];
 }
+
+// Global variable to store the text input callback
+TextInputCallback currentTextInputCallback = NULL;
+
+void registerTextInputCallback(TextInputCallback callback) {
+    currentTextInputCallback = callback;
+}
+
+
+// Global variable to store the key input callback
+KeyInputCallback currentKeyInputCallback = NULL;
+
+void registerKeyInputCallback(KeyInputCallback callback) {
+    currentKeyInputCallback = callback;
+}
+
+
+

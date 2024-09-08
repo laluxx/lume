@@ -4,6 +4,21 @@
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
 
+// Define a type for text input callbacks
+typedef void (*TextInputCallback)(unsigned int codepoint);
+extern TextInputCallback currentTextInputCallback;
+// Function to register a text input callback
+void registerTextInputCallback(TextInputCallback callback);
+
+
+// Define another type for key input callbacks
+typedef void (*KeyInputCallback)(int key, int action, int mods);
+extern KeyInputCallback currentKeyInputCallback;
+// Function to register key input callback
+void registerKeyInputCallback(KeyInputCallback callback);
+
+
+
 extern bool printKeyInfo;
 
 void initInput(GLFWwindow* window);

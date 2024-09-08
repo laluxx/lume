@@ -115,7 +115,7 @@ int main(void) {
         flush();
         
 
-        drawText(jetb, "Hello, World!", 800.0, 800.0, 1.0, 1.0);
+        drawText(jetb, "Hello, World!", 800.0, 800.0, WHITE);
 
         
         useShader("wave");

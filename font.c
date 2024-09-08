@@ -5,7 +5,8 @@
 #include <math.h>
 #include <stdbool.h>
 
-// TODO loadFontEx
+// TODO loadFontEx() with codepoints 
+
 FT_Library ft;
 
 void initFreeType() {
@@ -156,96 +157,17 @@ void drawTextEx(Font* font, const char* text, float x, float y, float sx, float 
     flush();
 }
 
-
-void drawText(Font* font, const char* text, float x, float y, float sx, float sy) {
-    const char *p;
-    float initialX = x;  // Save the starting x coordinate to reset to it on new lines
-    float lineHeight = getFontHeight(font) * sy;  // Calculate line height scaled by sy
-
-    useShader("text");
-    glBindTexture(GL_TEXTURE_2D, font->textureID);
-    glActiveTexture(GL_TEXTURE0);
-
-    for (p = text; *p; p++) {
-        if (*p == '\n') {
-            // Reset x to the initial value and move y down by one line height
-            x = initialX;
-            y -= lineHeight;
-            continue;  // Skip further processing for newline character
-        }
-
-        Character ch = font->characters[*p];
-
-        GLfloat xpos = x + ch.bl * sx;
-        GLfloat ypos = y - (ch.bh - ch.bt) * sy;
-
-        GLfloat w = ch.bw * sx;
-        GLfloat h = ch.bh * sy;
-
-        Vec2f uv1 = {ch.tx, ch.ty + ch.bh / 1024.0f};
-        Vec2f uv2 = {ch.tx, ch.ty};
-        Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty};
-        Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f};
-
-        // Draw each character
-        drawTriangleColors((Vec2f){xpos, ypos + h}, WHITE, uv1,
-                           (Vec2f){xpos, ypos}, WHITE, uv2,
-                           (Vec2f){xpos + w, ypos}, WHITE, uv3);
-        
-        drawTriangleColors((Vec2f){xpos, ypos + h}, WHITE, uv1,
-                           (Vec2f){xpos + w, ypos}, WHITE, uv3,
-                           (Vec2f){xpos + w, ypos + h}, WHITE, uv4);
-
-        // Advance cursor to next glyph position
-        x += ch.ax * sx;
-    }
-    flush();
+void drawText(Font* font, const char* text, float x, float y, Color textColor) {
+    float sx = 1.0;
+    float sy = 1.0;
+    drawTextEx(font, text, x, y, sx, sy, textColor, BLACK, -1);
 }
-
-
-/* void drawText(Font* font, const char* text, float x, float y, float sx, float sy) { */
-/*     const char *p; */
-/*     useShader("text"); */
-/*     glBindTexture(GL_TEXTURE_2D, font->textureID); */
-/*     glActiveTexture(GL_TEXTURE0); */
-
-/*     for (p = text; *p; p++) { */
-/*         Character ch = font->characters[*p]; */
-
-/*         GLfloat xpos = x + ch.bl * sx; */
-/*         GLfloat ypos = y - (ch.bh - ch.bt) * sy; */
-
-/*         GLfloat w = ch.bw * sx; */
-/*         GLfloat h = ch.bh * sy; */
-
-/*         Vec2f uv1 = {ch.tx, ch.ty + ch.bh / 1024.0f}; */
-/*         Vec2f uv2 = {ch.tx, ch.ty}; */
-/*         Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty}; */
-/*         Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f}; */
-
-
-/*         // Draw each character NOTE BLACK is defined somehow */
-/*         drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1, */
-/*                            (Vec2f){xpos, ypos}, BLACK, uv2, */
-/*                            (Vec2f){xpos + w, ypos}, BLACK, uv3); */
-        
-/*         drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1, */
-/*                            (Vec2f){xpos + w, ypos}, BLACK, uv3, */
-/*                            (Vec2f){xpos + w, ypos + h}, BLACK, uv4); */
-
-/*         // Advance cursors for next glyph */
-/*         x += ch.ax * sx; */
-/*         y += ch.ay * sy; */
-/*     } */
-/*     flush(); */
-/* } */
 
 
 void freeFont(Font* font) {
     glDeleteTextures(1, &font->textureID);
     free(font);
 }
-
 
 
 float getFontHeight(Font* font) {
@@ -258,12 +180,17 @@ float getFontHeight(Font* font) {
     return max_height;
 }
 
-// TODO This is good for monospaced fonts onlu
-// Implement a getCharWidth function
 float getFontWidth(Font* font) {
     return font->characters[' '].ax;
 }
 
+float getCharacterWidth(Font* font, char character) {
+    if (character < 0 || character >= MAX_CHARACTERS) {
+        fprintf(stderr, "Character out of supported range.\n");
+        return 0;
+    }
+    return font->characters[character].ax;
+}
 
 
 

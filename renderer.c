@@ -9,6 +9,7 @@
 #include "stb_image.h"
 
 // TODO drawCricle()
+// TODO drawRectangleEx() with rounded borders
 
 Renderer renderer = {0};
 

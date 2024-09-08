@@ -8,6 +8,10 @@
 #include <string.h>
 #include "theme.h"
 
+// TODO keep a list of buffer
+// and a reference to the active buffer
+// TODO add readonly bool to the Buffer
+
 typedef struct {
     char *content;   // Dynamic array to hold the text content
     size_t size;     // Current size of the content
@@ -19,10 +23,7 @@ void initBuffer(Buffer *buffer);
 void freeBuffer(Buffer *buffer);
 void insertChar(Buffer *buffer, char c);
 void handleKeys(Buffer *buffer);
-/* void drawCursor(Buffer *buffer, Font *font, int lineHeight, float x, float y); */
-/* void drawCursor(Buffer *buffer, Font *font, int lineHeight, float x, float y, Color color); */
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color);
-
 void right_char(Buffer * buffer);
 void left_char(Buffer * buffer);
 void previous_line(Buffer * buffer);
@@ -31,7 +32,12 @@ void move_end_of_line(Buffer * buffer);
 void move_beginning_of_line(Buffer * buffer);
 void delete_char(Buffer * buffer);
 void kill_line(Buffer * buffer);
-void open_line(Buffer * buffer);
+void open_line(Buffer *buffer);
+
+void keyInputHandler(int key, int action, int mods);
+void textInputHandler(unsigned int codepoint);
+void insertUnicodeCharacter(Buffer *buffer, unsigned int codepoint);
+int encodeUTF8(char *out, unsigned int codepoint);
 
 void initBuffer(Buffer * buffer) {
     buffer->capacity = 1024; // Initial capacity
@@ -70,77 +76,6 @@ void insertChar(Buffer * buffer, char c) {
     buffer->content[buffer->size] = '\0';
 }
 
-void handleKeys(Buffer *buffer) {
-    bool shiftPressed = isKeyDown(KEY_LEFT_SHIFT) || isKeyDown(KEY_RIGHT_SHIFT);
-    bool ctrlPressed = isKeyDown(KEY_LEFT_CONTROL) || isKeyDown(KEY_RIGHT_CONTROL);
-    bool altPressed = isKeyDown(KEY_LEFT_ALT) || isKeyDown(KEY_RIGHT_ALT);
-
-    if (!ctrlPressed && !altPressed) {
-        for (int key = 32; key <= 126; key++) { // NOTE Basic ASCII range
-            if (isKeyPressed(key)) {
-                char character = (char)key;
-
-                if (shiftPressed && character >= 'a' && character <= 'z') {
-                    character -= 32; // Convert to uppercase
-                } else if (!shiftPressed && character >= 'A' && character <= 'Z') {
-                    character += 32; // Convert to lowercase
-                }
-
-                insertChar(buffer, character);
-            }
-        }
-
-        // Backspace
-        if (isKeyPressed(KEY_BACKSPACE) && buffer->point > 0) {
-            buffer->point--;
-            memmove(buffer->content + buffer->point,
-                    buffer->content + buffer->point + 1,
-                    buffer->size - buffer->point);
-            buffer->size--;
-            buffer->content[buffer->size] = '\0';
-        }
-
-        if (isKeyPressed(KEY_ENTER)) {
-            insertChar(buffer, '\n');
-        }
-
-        if (isKeyPressed(KEY_DOWN))
-            next_line(buffer);
-        if (isKeyPressed(KEY_UP))
-            previous_line(buffer);
-        if (isKeyPressed(KEY_LEFT))
-            left_char(buffer);
-        if (isKeyPressed(KEY_RIGHT))
-            right_char(buffer);
-    }
-
-    if (altPressed && isKeyPressed(KEY_EQUAL))
-        nextTheme();
-    if (altPressed && isKeyPressed(KEY_MINUS))
-        previousTheme();
-
-    if (ctrlPressed && isKeyPressed(KEY_N))
-        next_line(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_P))
-        previous_line(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_F))
-        right_char(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_B))
-        left_char(buffer);
-
-    if (ctrlPressed && isKeyPressed(KEY_E))
-        move_end_of_line(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_A))
-        move_beginning_of_line(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_D))
-        delete_char(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_K))
-        kill_line(buffer);
-    if (ctrlPressed && isKeyPressed(KEY_O))
-        open_line(buffer);
-}
-
-
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
     int lineCount = 0;
     float cursorX = x;
@@ -150,16 +85,45 @@ void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
             lineCount++; // Increment line count on newline
             cursorX = x; // Reset cursor position to the start of the new line
         } else {
-            cursorX += getFontWidth(font); // NOTE monospace assumption
+            cursorX += getCharacterWidth(font, buffer->content[i]); // Use actual character width
         }
     }
 
-    Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent * 2};
+    float cursorWidth;
+    if (buffer->point < buffer->size && buffer->content[buffer->point] != '\n') {
+        cursorWidth = getCharacterWidth(font, buffer->content[buffer->point]);
+    } else {
+        // Default to the width of a space when at the end of a line or at the end of the buffer
+        cursorWidth = getCharacterWidth(font, ' ');
+    }
 
-    Vec2f cursorSize = {getFontWidth(font), (float)(font->ascent + font->descent)};
+    Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent};
+    Vec2f cursorSize = {cursorWidth, (float)(font->ascent + font->descent)};
 
     drawRectangle(cursorPosition, cursorSize, color);
 }
+
+
+
+/* void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) { */
+/*     int lineCount = 0; */
+/*     float cursorX = x; */
+
+/*     for (int i = 0; i < buffer->point; i++) { */
+/*         if (buffer->content[i] == '\n') { */
+/*             lineCount++; // Increment line count on newline */
+/*             cursorX = x; // Reset cursor position to the start of the new line */
+/*         } else { */
+/*             cursorX += getFontWidth(font); // NOTE monospace assumption */
+/*         } */
+/*     } */
+
+/*     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent}; */
+
+/*     Vec2f cursorSize = {getFontWidth(font), (float)(font->ascent + font->descent)}; */
+
+/*     drawRectangle(cursorPosition, cursorSize, color); */
+/* } */
 
 void left_char(Buffer * buffer) {
     if (buffer->point > 0) {
@@ -363,6 +327,8 @@ void open_line(Buffer *buffer) {
     // original line
 }
 
+Buffer mainBuffer;
+
 int main() {
     int sw = 1920;
     int sh = 1080;
@@ -370,20 +336,17 @@ int main() {
     initThemes();
 
     GLFWwindow *window = initWindow(sw, sh, "main.c - Glemax");
+    registerTextInputCallback(textInputHandler);
+    registerKeyInputCallback(keyInputHandler);
 
-    /* Font *font = loadFont("radon.otf", 100); */
     Font *font = loadFont("jetb.ttf", 100); // 14~16
 
-    Buffer mainBuffer;
     initBuffer(&mainBuffer);
 
-    float lh = getFontHeight(font);
 
     while (!windowShouldClose()) {
         sw = getScreenWidth();
         sh = getScreenHeight();
-        
-        handleKeys(&mainBuffer);
         
         beginDrawing();
         clearBackground(CT.bg);
@@ -391,17 +354,180 @@ int main() {
 
         useShader("simple");
         drawRectangle((Vec2f){0, 21}, (Vec2f){sw, 25}, CT.modeline);
-        drawCursor(&mainBuffer, font, 0, sh - lh, CT.cursor);
+        drawCursor(&mainBuffer, font, 0, sh - font->ascent, CT.cursor);
         flush();
 
-        /* drawText(font, mainBuffer.content, 0, sh-lh, 1.0, 1.0); */
-
-        drawTextEx(font, mainBuffer.content, 0, sh - lh, 1.0, 1.0, WHITE, CT.bg, mainBuffer.point);
-
+        drawTextEx(font, mainBuffer.content, 0, sh - font->ascent + font->descent, 1.0, 1.0, WHITE, CT.bg, mainBuffer.point);
+        
         endDrawing();
     }
 
+    freeFont(font);
     freeBuffer(&mainBuffer);
     closeWindow();
     return EXIT_SUCCESS;
+}
+
+
+
+void keyInputHandler(int key, int action, int mods) {
+    Buffer *buffer = &mainBuffer; // Assuming mainBuffer is globally accessible
+    if (!buffer) return;
+
+    bool shiftPressed = mods & GLFW_MOD_SHIFT;
+    bool ctrlPressed = mods & GLFW_MOD_CONTROL;
+    bool altPressed = mods & GLFW_MOD_ALT;
+
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        switch (key) {
+        case KEY_BACKSPACE:
+            if (buffer->point > 0) {
+                buffer->point--;
+                memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point);
+                buffer->size--;
+                buffer->content[buffer->size] = '\0';
+            }
+            break;
+        case KEY_ENTER:
+            insertChar(buffer, '\n');
+            break;
+        case KEY_DOWN:
+            next_line(buffer);
+            break;
+        case KEY_UP:
+            previous_line(buffer);
+            break;
+        case KEY_LEFT:
+            left_char(buffer);
+            break;
+        case KEY_RIGHT:
+            right_char(buffer);
+            break;
+        case KEY_DELETE:
+            delete_char(buffer);
+            break;
+        case KEY_N:
+            if (ctrlPressed) next_line(buffer);
+            break;
+        case KEY_P:
+            if (ctrlPressed) previous_line(buffer);
+            break;
+        case KEY_F:
+            if (ctrlPressed) right_char(buffer);
+            break;
+        case KEY_B:
+            if (ctrlPressed) left_char(buffer);
+            break;
+        case KEY_E:
+            if (ctrlPressed) move_end_of_line(buffer);
+            break;
+        case KEY_A:
+            if (ctrlPressed) move_beginning_of_line(buffer);
+            break;
+        case KEY_D:
+            if (ctrlPressed) delete_char(buffer);
+            break;
+        case KEY_K:
+            if (ctrlPressed) kill_line(buffer);
+            break;
+        case KEY_O:
+            if (ctrlPressed) open_line(buffer);
+            break;
+        case KEY_EQUAL:
+            if (altPressed) nextTheme();
+            break;
+        case KEY_MINUS:
+            if (altPressed) previousTheme();
+            break;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* void keyInputHandler(int key, int action, int mods) { */
+/*     Buffer *buffer = &mainBuffer; // Assuming mainBuffer is globally accessible */
+/*     if (!buffer) return; */
+
+/*     // Handle control keys */
+/*     if (action == GLFW_PRESS || action == GLFW_REPEAT) { */
+/*         switch (key) { */
+/*         case GLFW_KEY_BACKSPACE: */
+/*             if (buffer->point > 0) { */
+/*                 buffer->point--; */
+/*                 memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point); */
+/*                 buffer->size--; */
+/*                 buffer->content[buffer->size] = '\0'; */
+/*             } */
+/*             break; */
+/*         case KEY_ENTER: */
+/*             insertChar(buffer, '\n'); */
+/*             break; */
+/*         case KEY_DOWN: */
+/*             next_line(buffer); */
+/*             break; */
+/*         case KEY_UP: */
+/*             previous_line(buffer); */
+/*             break; */
+/*         case KEY_LEFT: */
+/*             left_char(buffer); */
+/*             break; */
+/*         case KEY_RIGHT: */
+/*             right_char(buffer); */
+/*             break; */
+/*         case KEY_DELETE: */
+/*             delete_char(buffer); */
+/*             break; */
+/*             // Add more control keys as needed */
+/*         } */
+/*     } */
+/* } */
+
+void textInputHandler(unsigned int codepoint) {
+    Buffer *buffer = &mainBuffer; // Assuming 'mainBuffer' is your current
+    // text editing buffer
+    if (buffer != NULL) {
+        insertUnicodeCharacter(buffer, codepoint);
+    }
+}
+
+void insertUnicodeCharacter(Buffer * buffer, unsigned int codepoint) {
+    char utf8[5]; // Buffer to hold UTF-8 encoded character
+    int bytes = encodeUTF8(
+                           utf8, codepoint); // Function to convert codepoint to UTF-8
+    for (int i = 0; i < bytes; i++) {
+        insertChar(buffer, utf8[i]);
+    }
+}
+
+int encodeUTF8(char *out, unsigned int codepoint) {
+    if (codepoint <= 0x7F) {
+        out[0] = codepoint;
+        return 1;
+    } else if (codepoint <= 0x7FF) {
+        out[0] = 192 + (codepoint >> 6);
+        out[1] = 128 + (codepoint & 63);
+        return 2;
+    } else if (codepoint <= 0xFFFF) {
+        out[0] = 224 + (codepoint >> 12);
+        out[1] = 128 + ((codepoint >> 6) & 63);
+        out[2] = 128 + (codepoint & 63);
+        return 3;
+    } else {
+        out[0] = 240 + (codepoint >> 18);
+        out[1] = 128 + ((codepoint >> 12) & 63);
+        out[2] = 128 + ((codepoint >> 6) & 63);
+        out[3] = 128 + (codepoint & 63);
+        return 4;
+    }
 }

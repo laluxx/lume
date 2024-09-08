@@ -8,6 +8,18 @@
 
 static GLFWwindow* g_window = NULL;
 
+void char_callback(GLFWwindow* window, unsigned int codepoint) {
+    if (currentTextInputCallback != NULL) {
+        currentTextInputCallback(codepoint);  // Forward the codepoint to the registered handler
+    }
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (currentKeyInputCallback != NULL) {
+        currentKeyInputCallback(key, action, mods);  // Forward the event to the registered handler
+    }
+}
+
 GLFWwindow* initWindow(int width, int height, const char* title) {
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
@@ -31,6 +43,8 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
 
     // Make the window's context current
     glfwMakeContextCurrent(g_window);
+    glfwSetCharCallback(g_window, char_callback); // Set the character callback
+    glfwSetKeyCallback(g_window, key_callback);   // Set key callback
 
     // Initialize GLEW
     /* glewExperimental = GL_TRUE;  // Enable GLEW experimental mode */
