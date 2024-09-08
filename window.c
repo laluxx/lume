@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 #include "window.h"
 #include "font.h"
+#include "input.h"
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -56,6 +57,7 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    initInput(g_window);
     initRenderer(width, height);
     initFreeType();
     return g_window;
@@ -70,8 +72,7 @@ int windowShouldClose() {
 }
 
 void beginDrawing() {
-    /* glClearColor(0.1, 0.1, 0.1, 1.0);  // Default clear color (dark gray) */
-    /* glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);  // Clear the color and depth buffer */
+    // TODO Nothing here yet just an hook to the beginning of the frame
 }
 
 void clearBackground(Color color) {
@@ -80,10 +81,10 @@ void clearBackground(Color color) {
 }
 
 void endDrawing() {
-    glfwSwapBuffers(g_window);  // Swap the rendering buffers
-    glfwPollEvents();  // Process window events
+    updateInput();
+    glfwSwapBuffers(g_window);
+    glfwPollEvents();
 }
-
 
 void closeWindow() {
     if (g_window) {

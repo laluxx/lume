@@ -418,3 +418,24 @@ static GLuint linkProgram(const char *vertexSource, const char *fragmentSource) 
 
     return program;
 }
+
+
+GLint getUniformLocation(const char* uniformName) {
+    if (renderer.activeShader == 0) {
+        fprintf(stderr, "No active shader program.\n");
+        return -1;
+    }
+    GLint location = glGetUniformLocation(renderer.activeShader, uniformName);
+    if (location == -1) {
+        fprintf(stderr, "Uniform '%s' not found in the current shader program.\n", uniformName);
+    }
+    return location;
+}
+
+void uniform4f(const char *name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3) {
+    GLint location = getUniformLocation(name);
+    if (location != -1) {
+        glUniform4f(location, v0, v1, v2, v3);
+    }
+}
+

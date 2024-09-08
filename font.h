@@ -26,13 +26,21 @@ typedef struct {
     GLuint textureID;     // ID handle of the glyph texture
     unsigned int width;   // width of the texture atlas
     unsigned int height;  // height of the texture atlas
+    int ascent;
+    int descent;
     Character characters[MAX_CHARACTERS];
 } Font;
 
 void initFreeType();
 Font* loadFont(const char* fontPath, int fontSize);
 void drawText(Font* font, const char* text, float x, float y, float sx, float sy);
+void drawTextEx(Font* font, const char* text,
+                float x, float y, float sx, float sy, Color textColor, Color highlightColor, int highlightPos);
+
+
+
 float getFontHeight(Font* font);
+float getFontWidth(Font* font);
 void freeFont(Font* font);
 
 #endif // FONT_H

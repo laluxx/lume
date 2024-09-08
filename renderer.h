@@ -73,6 +73,8 @@ void reloadShaders();
 GLuint loadTexture(const char* filepath);
 void drawTexture(Vec2f position, Vec2f size, GLuint textureID);
 
+GLint getUniformLocation(const char* uniformName);
+void uniform4f(const char *name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 
 // TODO Hardcoded in lib shaders
 /* const char* simple_vert = */

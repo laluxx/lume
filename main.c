@@ -51,7 +51,6 @@ int main(void) {
     initRenderer(screenWidth, screenHeight);
 
     initInput(window);
-    initThemes();
 
     bool wireframe = false;
 
@@ -67,8 +66,6 @@ int main(void) {
         /* glPointSize(4.0f); */
 
         if (isKeyDown(KEY_LEFT_ALT) || isKeyDown(KEY_RIGHT_ALT)) {
-            if (isKeyPressed(KEY_EQUAL)) nextTheme();
-            if (isKeyPressed(KEY_MINUS)) previousTheme();
         }
 
         if (isKeyPressed(KEY_R)) {
@@ -89,13 +86,13 @@ int main(void) {
         updateInput();  // NOTE This should be called after all key handling
         reloadShaders(); // NOTE reloading shaders every frame its bad,
 
-        glClearColor(CURRENT_THEME.bg.r, CURRENT_THEME.bg.g, CURRENT_THEME.bg.b, CURRENT_THEME.bg.a);
+        glClearColor(BLACK.r, BLACK.g, BLACK.b, BLACK.a);
         glClear(GL_COLOR_BUFFER_BIT);
 
 
 
         useShader("circle");
-        drawRectangle((Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, CURRENT_THEME.cursor);
+        drawRectangle((Vec2f){screenWidth / 2.0 - 50.0f, screenHeight / 2.0 - 50.0f}, (Vec2f){100.0f, 100.0f}, RED);
         flush();
 
 
@@ -103,9 +100,9 @@ int main(void) {
         useShader("simple");
 
         if (isGamepadButtonDown(GAMEPAD_BUTTON_A)) {
-            drawRectangle((Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.cursor);
+            drawRectangle((Vec2f){0, 21}, (Vec2f){screenWidth, 25}, RED);
         } else {
-            drawRectangle((Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CURRENT_THEME.modeline_highlight);
+            drawRectangle((Vec2f){0, 21}, (Vec2f){screenWidth, 25}, CYAN);
         }
 
         flush();
@@ -123,14 +120,14 @@ int main(void) {
         
         useShader("wave");
   
-        drawTriangle(CURRENT_THEME.cursor,
+        drawTriangle(RED,
                      (Vec2f){100.0f, 100.0f},
                      (Vec2f){200.0f, 100.0f},
                      (Vec2f){150.0f, 200.0f});
 
-        drawTriangleColors((Vec2f){100.0f, 50.0f}, CURRENT_THEME.minibuffer, (Vec2f){1.0f, 0.0f},
-                           (Vec2f){50.0f, 50.0f},  CURRENT_THEME.cursor,     (Vec2f){0.0f, 0.0f},
-                           (Vec2f){75.0f, 100.0f}, CURRENT_THEME.text,       (Vec2f){0.5f, 1.0f});
+        drawTriangleColors((Vec2f){100.0f, 50.0f}, RED, (Vec2f){1.0f, 0.0f},
+                           (Vec2f){50.0f, 50.0f},  MAGENTA,     (Vec2f){0.0f, 0.0f},
+                           (Vec2f){75.0f, 100.0f}, CYAN,       (Vec2f){0.5f, 1.0f});
 
         flush();
 

@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -I/usr/include/freetype2 -I.
 LIBS = -llume
-SRC = main.c
+SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 
 TARGET = glemax

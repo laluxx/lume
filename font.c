@@ -1,4 +1,5 @@
 #include "font.h"
+/* #include "renderer.h" */
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -25,22 +26,28 @@ Font* loadFont(const char* fontPath, int fontSize) {
         fprintf(stderr, "Failed to load font: %s\n", fontPath);
         return NULL;
     }
-   
+
     printf("[LOADED FONT] %s %i\n", fontPath, fontSize);
 
     FT_Set_Pixel_Sizes(face, 0, fontSize);
 
     Font* font = (Font*)malloc(sizeof(Font));
     if (!font) {
+        FT_Done_Face(face);
         fprintf(stderr, "Memory allocation failed for font structure\n");
         return NULL;
     }
 
+    // Save ascent and descent, converting from FreeType 26.6 fixed point format
+    font->ascent = face->size->metrics.ascender >> 6;
+    font->descent = -(face->size->metrics.descender >> 6); // Make descent positive
+
     // Create a buffer for the texture atlas
     unsigned char* atlas = (unsigned char*)calloc(1024 * 1024, sizeof(unsigned char));
     if (!atlas) {
-        fprintf(stderr, "Memory allocation failed for texture atlas\n");
         free(font);
+        FT_Done_Face(face);
+        fprintf(stderr, "Memory allocation failed for texture atlas\n");
         return NULL;
     }
 
@@ -57,12 +64,11 @@ Font* loadFont(const char* fontPath, int fontSize) {
             ox = 0;
         }
 
-        // Flip the glyph vertically as it is loaded into the buffer
         for (int y = 0; y < face->glyph->bitmap.rows; y++) {
             for (int x = 0; x < face->glyph->bitmap.width; x++) {
                 int atlas_y = oy + y;
-                int glyph_y = face->glyph->bitmap.rows - 1 - y;  // flip here
-                atlas[(ox + x) + (atlas_y) * 1024] = face->glyph->bitmap.buffer[x + glyph_y * face->glyph->bitmap.pitch];
+                int glyph_y = face->glyph->bitmap.rows - 1 - y; // Flip vertically
+                atlas[(ox + x) + (atlas_y * 1024)] = face->glyph->bitmap.buffer[x + glyph_y * face->glyph->bitmap.pitch];
             }
         }
 
@@ -87,24 +93,87 @@ Font* loadFont(const char* fontPath, int fontSize) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Write atlas as png
-    if (shouldSaveAtlas) {
-        stbi_write_png("font_atlas.png", 1024, 1024, 1, atlas, 1024);        
-    }
+
+    if (shouldSaveAtlas) 
+        stbi_write_png("font_atlas.png", 1024, 1024, 1, atlas, 1024);
+
 
     free(atlas);
     FT_Done_Face(face);
-
     return font;
 }
 
+
+void drawTextEx(Font* font, const char* text, float x, float y, float sx, float sy, Color textColor, Color highlightColor, int highlightPos) {
+    const char *p;
+    int charPos = 0; // Position index of the character in the string
+    float initialX = x;  // Save the starting x coordinate to reset to it on new lines
+    float lineHeight = (font->ascent + font->descent) * sy;  // Adjusted to include ascent and descent
+
+    useShader("text");
+    glBindTexture(GL_TEXTURE_2D, font->textureID);
+    glActiveTexture(GL_TEXTURE0);
+
+    for (p = text; *p; p++, charPos++) {
+        if (*p == '\n') {
+            x = initialX;
+            y -= lineHeight;
+            continue;  // Handle new lines
+        }
+
+        Character ch = font->characters[*p];
+
+        // Correct the y position to align the baseline of the font
+        GLfloat xpos = x + ch.bl * sx;
+        GLfloat ypos = y - (ch.bh - ch.bt + font->descent) * sy;
+
+        GLfloat w = ch.bw * sx;
+        GLfloat h = ch.bh * sy;
+
+        Vec2f uv1 = {ch.tx, ch.ty + ch.bh / 1024.0f};
+        Vec2f uv2 = {ch.tx, ch.ty};
+        Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty};
+        Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f};
+
+        // Determine color based on highlight position
+        Color currentColor = textColor;
+        if (highlightPos >= 0 && charPos == highlightPos) {
+            currentColor = highlightColor;
+        }
+
+        // Draw each character with the appropriate color
+        drawTriangleColors((Vec2f){xpos, ypos + h}, currentColor, uv1,
+                           (Vec2f){xpos, ypos}, currentColor, uv2,
+                           (Vec2f){xpos + w, ypos}, currentColor, uv3);
+
+        drawTriangleColors((Vec2f){xpos, ypos + h}, currentColor, uv1,
+                           (Vec2f){xpos + w, ypos}, currentColor, uv3,
+                           (Vec2f){xpos + w, ypos + h}, currentColor, uv4);
+
+        // Advance cursor to next glyph position
+        x += ch.ax * sx;
+    }
+    flush();
+}
+
+
 void drawText(Font* font, const char* text, float x, float y, float sx, float sy) {
     const char *p;
+    float initialX = x;  // Save the starting x coordinate to reset to it on new lines
+    float lineHeight = getFontHeight(font) * sy;  // Calculate line height scaled by sy
+
     useShader("text");
     glBindTexture(GL_TEXTURE_2D, font->textureID);
     glActiveTexture(GL_TEXTURE0);
 
     for (p = text; *p; p++) {
+        if (*p == '\n') {
+            // Reset x to the initial value and move y down by one line height
+            x = initialX;
+            y -= lineHeight;
+            continue;  // Skip further processing for newline character
+        }
+
         Character ch = font->characters[*p];
 
         GLfloat xpos = x + ch.bl * sx;
@@ -118,28 +187,66 @@ void drawText(Font* font, const char* text, float x, float y, float sx, float sy
         Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty};
         Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f};
 
-
-        // Draw each character NOTE BLACK is defined somehow
-        drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1,
-                           (Vec2f){xpos, ypos}, BLACK, uv2,
-                           (Vec2f){xpos + w, ypos}, BLACK, uv3);
+        // Draw each character
+        drawTriangleColors((Vec2f){xpos, ypos + h}, WHITE, uv1,
+                           (Vec2f){xpos, ypos}, WHITE, uv2,
+                           (Vec2f){xpos + w, ypos}, WHITE, uv3);
         
-        drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1,
-                           (Vec2f){xpos + w, ypos}, BLACK, uv3,
-                           (Vec2f){xpos + w, ypos + h}, BLACK, uv4);
+        drawTriangleColors((Vec2f){xpos, ypos + h}, WHITE, uv1,
+                           (Vec2f){xpos + w, ypos}, WHITE, uv3,
+                           (Vec2f){xpos + w, ypos + h}, WHITE, uv4);
 
-        // Advance cursors for next glyph
+        // Advance cursor to next glyph position
         x += ch.ax * sx;
-        y += ch.ay * sy;
     }
     flush();
 }
+
+
+/* void drawText(Font* font, const char* text, float x, float y, float sx, float sy) { */
+/*     const char *p; */
+/*     useShader("text"); */
+/*     glBindTexture(GL_TEXTURE_2D, font->textureID); */
+/*     glActiveTexture(GL_TEXTURE0); */
+
+/*     for (p = text; *p; p++) { */
+/*         Character ch = font->characters[*p]; */
+
+/*         GLfloat xpos = x + ch.bl * sx; */
+/*         GLfloat ypos = y - (ch.bh - ch.bt) * sy; */
+
+/*         GLfloat w = ch.bw * sx; */
+/*         GLfloat h = ch.bh * sy; */
+
+/*         Vec2f uv1 = {ch.tx, ch.ty + ch.bh / 1024.0f}; */
+/*         Vec2f uv2 = {ch.tx, ch.ty}; */
+/*         Vec2f uv3 = {ch.tx + ch.bw / 1024.0f, ch.ty}; */
+/*         Vec2f uv4 = {ch.tx + ch.bw / 1024.0f, ch.ty + ch.bh / 1024.0f}; */
+
+
+/*         // Draw each character NOTE BLACK is defined somehow */
+/*         drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1, */
+/*                            (Vec2f){xpos, ypos}, BLACK, uv2, */
+/*                            (Vec2f){xpos + w, ypos}, BLACK, uv3); */
+        
+/*         drawTriangleColors((Vec2f){xpos, ypos + h}, BLACK, uv1, */
+/*                            (Vec2f){xpos + w, ypos}, BLACK, uv3, */
+/*                            (Vec2f){xpos + w, ypos + h}, BLACK, uv4); */
+
+/*         // Advance cursors for next glyph */
+/*         x += ch.ax * sx; */
+/*         y += ch.ay * sy; */
+/*     } */
+/*     flush(); */
+/* } */
 
 
 void freeFont(Font* font) {
     glDeleteTextures(1, &font->textureID);
     free(font);
 }
+
+
 
 float getFontHeight(Font* font) {
     float max_height = 0;
@@ -150,6 +257,13 @@ float getFontHeight(Font* font) {
     }
     return max_height;
 }
+
+// TODO This is good for monospaced fonts onlu
+// Implement a getCharWidth function
+float getFontWidth(Font* font) {
+    return font->characters[' '].ax;
+}
+
 
 
 
