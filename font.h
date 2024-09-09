@@ -40,6 +40,9 @@ void drawTextEx(Font* font, const char* text,
                 Color textColor, Color highlightColor, int highlightPos, bool cursorVisible);
 
 
+
+
+
 float getFontHeight(Font* font);
 float getFontWidth(Font* font);
 float getCharacterWidth(Font* font, char character);

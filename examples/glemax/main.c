@@ -1,90 +1,57 @@
-#include "font.h"
-#include "renderer.h"
-#include "window.h"
-#include "input.h"
-#include <common.h>
+#include <lume.h>
+#include "theme.h"
+#include "buffer.h"
+#include "edit.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "theme.h"
+#include <ctype.h>
+/* #include <string.h> */
 
-// TODO keep a list of buffer
-// and a reference to the active buffer
-// TODO add readonly bool to the Buffer
+// TODO Region
+// TODO isearch-backward and color unmatched characters
+// TODO forward-paragraph
+// TODO backward-paragraph
+// TODO forward-word
+// TODO backward-word
+// TODO scrolling, and recenter_top_bottom
+// TODO syntax highlighting
+// TODO unhardcode the keybinds
+
+// TODO Don't fetch for the same buffer multiple times
+// per frame, do it only once and pass it arround.
+
+
+// ENGINE
+// TODO Scissors
+
+typedef struct {
+    Buffer *searchBuffer;
+    size_t lastMatchIndex;
+    size_t startIndex;
+    bool searching;
+} ISearch;
+
+ISearch isearch = {0};
 
 bool electric_pair_mode = true;
 bool blink_cursor_mode = true;
 float blink_cursor_delay = 0.5; // Seconds of idle time before the first blink of the cursor.
 float blink_cursor_interval = 0.5; // Lenght of cursor blink interval in seconds.
 int blink_cursor_blinks = 10; // How many times to blink before stopping.
+int indentation = 4;
     
-typedef struct {
-    char *content;   // Dynamic array to hold the text content
-    size_t size;     // Current size of the content
-    size_t capacity; // Allocated capacity of the content
-    size_t point;    // Cursor position
-} Buffer;
-
-void initBuffer(Buffer *buffer);
-void freeBuffer(Buffer *buffer);
-void insertChar(Buffer *buffer, char c);
-void handleKeys(Buffer *buffer);
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color);
-void right_char(Buffer * buffer);
-void left_char(Buffer * buffer);
-void previous_line(Buffer * buffer);
-void next_line(Buffer * buffer);
-void move_end_of_line(Buffer * buffer);
-void move_beginning_of_line(Buffer * buffer);
-void delete_char(Buffer * buffer);
-void kill_line(Buffer * buffer);
-void open_line(Buffer *buffer);
+void isearch_forward(Buffer *buffer, Buffer *minibuffer);
 
 void keyInputHandler(int key, int action, int mods);
 void textInputHandler(unsigned int codepoint);
 void insertUnicodeCharacter(Buffer *buffer, unsigned int codepoint);
 int encodeUTF8(char *out, unsigned int codepoint);
 
-void initBuffer(Buffer * buffer) {
-    buffer->capacity = 1024; // Initial capacity
-    buffer->content = malloc(buffer->capacity * sizeof(char));
-    buffer->size = 0;
-    buffer->point = 0;
-    if (buffer->content) {
-        buffer->content[0] = '\0';
-    } else {
-        fprintf(stderr, "Failed to allocate memory for buffer.\n");
-        exit(EXIT_FAILURE);
-    }
-}
 
-void freeBuffer(Buffer *buffer) {
-    free(buffer->content);
-    buffer->content = NULL;
-    buffer->size = 0;
-    buffer->capacity = 0;
-    buffer->point = 0;
-}
-
-void insertChar(Buffer * buffer, char c) {
-    if (buffer->size + 1 >= buffer->capacity) {
-        buffer->capacity *= 2;
-        buffer->content = realloc(buffer->content, buffer->capacity * sizeof(char));
-        if (!buffer->content) {
-            fprintf(stderr, "Failed to reallocate memory for buffer.\n");
-            return;
-        }
-    }
-    memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point);
-    buffer->content[buffer->point] = c;
-    buffer->point++;
-    buffer->size++;
-    buffer->content[buffer->size] = '\0';
-}
 
 static double lastBlinkTime = 0.0;  // Last time the cursor state changed
 static bool cursorVisible = true;  // Initial state of the cursor visibility
-
 static int blinkCount = 0;  // Counter for number of blinks
 
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
@@ -126,279 +93,7 @@ void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
 }
 
 
-
-
-/* void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) { */
-/*     int lineCount = 0; */
-/*     float cursorX = x; */
-
-
-/*     // Calculate cursor position */
-/*     for (size_t i = 0; i < buffer->point; i++) { */
-/*         if (buffer->content[i] == '\n') { */
-/*             lineCount++; */
-/*             cursorX = x; */
-/*         } else { */
-/*             cursorX += getCharacterWidth(font, buffer->content[i]); */
-/*         } */
-/*     } */
-
-/*     float cursorWidth = buffer->point < buffer->size && buffer->content[buffer->point] != '\n' */
-/*         ? getCharacterWidth(font, buffer->content[buffer->point]) */
-/*         : getCharacterWidth(font, ' '); */
-
-/*     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent}; */
-/*     Vec2f cursorSize = {cursorWidth, font->ascent + font->descent}; */
-
-/*     if (blink_cursor_mode) { */
-/*         double currentTime = getTime(); */
-/*         if (currentTime - lastBlinkTime >= (cursorVisible ? blink_cursor_interval : blink_cursor_delay)) { */
-/*             cursorVisible = !cursorVisible;  // Toggle cursor visibility */
-/*             lastBlinkTime = currentTime; */
-/*         } */
-
-/*         if (cursorVisible) { */
-/*             drawRectangle(cursorPosition, cursorSize, color); */
-/*         } */
-/*     } else { */
-/*         drawRectangle(cursorPosition, cursorSize, color); */
-/*     } */
-/* } */
-
-
-
-
-/* void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color) { */
-/*     int lineCount = 0; */
-/*     float cursorX = x; */
-
-/*     for (int i = 0; i < buffer->point; i++) { */
-/*         if (buffer->content[i] == '\n') { */
-/*             lineCount++; // Increment line count on newline */
-/*             cursorX = x; // Reset cursor position to the start of the new line */
-/*         } else { */
-/*             cursorX += getCharacterWidth(font, buffer->content[i]); // Use actual character width */
-/*         } */
-/*     } */
-
-/*     float cursorWidth; */
-/*     if (buffer->point < buffer->size && buffer->content[buffer->point] != '\n') { */
-/*         cursorWidth = getCharacterWidth(font, buffer->content[buffer->point]); */
-/*     } else { */
-/*         // Default to the width of a space when at the end of a line or at the end of the buffer */
-/*         cursorWidth = getCharacterWidth(font, ' '); */
-/*     } */
-
-/*     Vec2f cursorPosition = {cursorX, y - lineCount * (font->ascent + font->descent) - font->descent}; */
-/*     Vec2f cursorSize = {cursorWidth, (float)(font->ascent + font->descent)}; */
-
-/*     drawRectangle(cursorPosition, cursorSize, color); */
-/* } */
-
-
-void left_char(Buffer * buffer) {
-    if (buffer->point > 0) {
-        buffer->point--;
-    }
-}
-
-void right_char(Buffer * buffer) {
-    if (buffer->point < buffer->size) {
-        buffer->point++;
-    }
-}
-
-
-// TODO Remember the highest character position you were in
-// when you first called previous_line or next_line and kept calling it
-// like emacs does
-void previous_line(Buffer *buffer) {
-    if (buffer->point == 0)
-        return; // Already at the start of the text, no further up to go.
-
-    int previousLineEnd = 0;
-    int previousLineStart = 0;
-    int currentLineStart = 0;
-
-    // Step backwards to find the start of the current line
-    for (int i = buffer->point - 1; i >= 0; i--) {
-        if (buffer->content[i] == '\n') {
-            currentLineStart = i + 1;
-            break;
-        }
-    }
-
-    // If we're at the start of the text, the current line is the first line
-    if (currentLineStart == 0) {
-        buffer->point = 0;
-        return;
-    }
-
-    // Step backwards to find the start of the previous line
-    for (int i = currentLineStart - 2; i >= 0;
-         i--) { // Start from before the newline of the current line start
-        if (buffer->content[i] == '\n') {
-            previousLineStart = i + 1;
-            break;
-        }
-    }
-
-    // Step backwards to find the end of the line before the current
-    for (int i = currentLineStart - 1; i >= 0; i--) {
-        if (buffer->content[i] == '\n') {
-            previousLineEnd = i;
-            break;
-        }
-        if (i == 0) { // If no newline found, the previous line end is at the start
-            // of the file
-            previousLineEnd = 0;
-        }
-    }
-
-    // Calculate the desired column position
-    int column = buffer->point - currentLineStart;
-    int previousLineLength = previousLineEnd - previousLineStart;
-
-    // If the desired column is beyond the length of the previous line, set point
-    // at the end of the previous line
-    if (column >= previousLineLength) {
-        buffer->point = previousLineEnd;
-    } else {
-        buffer->point = previousLineStart + column;
-    }
-}
-
-void next_line(Buffer *buffer) {
-    if (buffer->point >= buffer->size)
-        return; // Already at the end of the text.
-
-    int currentLineEnd = buffer->point;
-    int nextLineStart = buffer->size;
-    int columnPosition = 0;
-
-    // Determine the end of the current line.
-    for (size_t i = buffer->point; i < buffer->size; i++) {
-        if (buffer->content[i] == '\n') {
-            currentLineEnd = i;
-            nextLineStart = i + 1;
-            break;
-        }
-    }
-
-    // Calculate column position.
-    int currentLineStart = buffer->point;
-    while (currentLineStart > 0 &&
-           buffer->content[currentLineStart - 1] != '\n') {
-        currentLineStart--;
-    }
-    columnPosition = buffer->point - currentLineStart;
-
-    // Calculate the point position in the next line, limited by the line's
-    // length.
-    size_t targetPosition = nextLineStart + columnPosition;
-    for (size_t i = nextLineStart; i <= buffer->size; i++) {
-        if (buffer->content[i] == '\n' || i == buffer->size) {
-            if (targetPosition > i)
-                targetPosition = i;
-            break;
-        }
-    }
-    buffer->point = targetPosition;
-}
-
-void move_beginning_of_line(Buffer * buffer) {
-    for (int i = buffer->point - 1; i >= 0; i--) {
-        if (buffer->content[i] == '\n') {
-            buffer->point = i + 1; // Set point right after the newline.
-            return;
-        }
-    }
-    buffer->point = 0; // no newline was found, go to the beginning of buffer
-}
-
-void move_end_of_line(Buffer *buffer) {
-    for (size_t i = buffer->point; i < buffer->size; i++) {
-        if (buffer->content[i] == '\n') {
-            buffer->point = i;
-            return;
-        }
-    }
-    buffer->point = buffer->size; // no newline was found, go to the end of buffer
-}
-
-void delete_char(Buffer *buffer) {
-    if (buffer->point >= buffer->size)
-        return;
-
-    // Move all characters after the cursor left by one position
-    memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1,
-            buffer->size - buffer->point - 1);
-    // Decrease the size of the buffer
-    buffer->size--;
-    // Null-terminate the string
-    buffer->content[buffer->size] = '\0';
-}
-
-void kill_line(Buffer *buffer) {
-    if (buffer->point >= buffer->size)
-        return; // Nothing to delete if at the end of the buffer
-
-    size_t endOfLine = buffer->point;
-    // Find the end of the current line or the buffer
-    while (endOfLine < buffer->size && buffer->content[endOfLine] != '\n') {
-        endOfLine++;
-    }
-
-    // If endOfLine is at a newline character, include it in the deletion
-    if (endOfLine < buffer->size && buffer->content[endOfLine] == '\n') {
-        endOfLine++;
-    }
-
-    // Calculate the number of characters to delete
-    int numToDelete = endOfLine - buffer->point;
-
-    // Shift remaining text in the buffer left over the killed text
-    if (endOfLine < buffer->size) {
-        memmove(buffer->content + buffer->point, buffer->content + endOfLine,
-                buffer->size - endOfLine);
-    }
-
-    // Update buffer size
-    buffer->size -= numToDelete;
-
-    // Null-terminate the buffer
-    buffer->content[buffer->size] = '\0';
-}
-
-void open_line(Buffer *buffer) {
-    // Ensure there is enough capacity, and if not, expand the buffer
-    if (buffer->size + 1 >= buffer->capacity) {
-        buffer->capacity *= 2;
-        char *newContent =
-            realloc(buffer->content, buffer->capacity * sizeof(char));
-        if (!newContent) {
-            fprintf(stderr, "Failed to reallocate memory for buffer.\n");
-            return;
-        }
-        buffer->content = newContent;
-    }
-
-    // Shift text to the right to make space for a new newline character
-    memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point,
-            buffer->size - buffer->point +
-            1); // Include the null terminator in the move
-
-    // Insert the newline at the current cursor position
-    buffer->content[buffer->point] = '\n';
-
-    // Update buffer size
-    buffer->size++;
-
-    // Do not move the cursor to reflect the requirement to stay at the end of the
-    // original line
-}
-
-Buffer mainBuffer;
+BufferManager bm = {0};
 
 int main() {
     int sw = 1920;
@@ -411,72 +106,182 @@ int main() {
     registerKeyInputCallback(keyInputHandler);
 
     Font *font = loadFont("jetb.ttf", 40); // 14~16
+    Font *minifont = loadFont("jetb.ttf", 22); // 16
 
-    initBuffer(&mainBuffer);
+    initBufferManager(&bm);
+    newBuffer(&bm, "minibuffer");
+    newBuffer(&bm, "second");
+    newBuffer(&bm, "main");
 
 
+    
     while (!windowShouldClose()) {
         sw = getScreenWidth();
         sh = getScreenHeight();
+        reloadShaders();
+
+
+        Buffer *minibuffer = getBuffer(&bm, "minibuffer");
+        Buffer *currentBuffer = getActiveBuffer(&bm);        
         
+        /* minibuffer->content = "porcodio"; */
+            
         beginDrawing();
         clearBackground(CT.bg);
 
 
         useShader("simple");
-        drawRectangle((Vec2f){0, 21}, (Vec2f){sw, 25}, CT.modeline);
-        drawCursor(&mainBuffer, font, 0, sh - font->ascent, CT.cursor);
-        flush();
+        drawRectangle((Vec2f){0, minifont->ascent + minifont->descent}, (Vec2f){sw, 25}, CT.modeline); //21
 
-        drawTextEx(font, mainBuffer.content, 0, sh - font->ascent + font->descent, 1.0, 1.0, WHITE, CT.bg, mainBuffer.point, cursorVisible);
+
+        if (isCurrentBuffer(&bm, "minibuffer")) {
+            drawCursor(currentBuffer, minifont, 0, 0 + minifont->descent,
+                       CT.cursor);
+        } else {
+            drawCursor(currentBuffer, font, 0, sh - font->ascent, CT.cursor);
+        }
+
+        flush();
+        
+        // BUFFER TEXT
+        if (!isCurrentBuffer(&bm, "minibuffer")) {
+            drawTextEx(font, currentBuffer->content,
+                       0, sh - font->ascent + font->descent, 1.0, 1.0,
+                       WHITE, CT.bg,
+                       currentBuffer->point, cursorVisible);
+        } 
+
+        // MINIBUFFER TEXT
+        if (isCurrentBuffer(&bm, "minibuffer")) {
+            drawTextEx(minifont, minibuffer->content,
+                       0, + minifont->ascent - minifont->descent * 1.3,
+                       1.0, 1.0, WHITE, CT.bg, currentBuffer->point, cursorVisible);
+        } else {
+            drawTextEx(minifont, minibuffer->content,
+                       0, + minifont->ascent - minifont->descent * 1.3,
+                       1.0, 1.0, WHITE, CT.bg, -1, cursorVisible);
+        }
         
         endDrawing();
     }
 
     freeFont(font);
-    freeBuffer(&mainBuffer);
+    freeBufferManager(&bm);
     closeWindow();
-    return EXIT_SUCCESS;
+    return 0;
+}
+
+void backspace(Buffer *buffer) {
+    if (buffer->point > 0 && electric_pair_mode) {
+        // Check if backspacing over an opening character that has a closing pair right after
+        unsigned int currentChar = buffer->content[buffer->point - 1];
+        unsigned int nextChar = buffer->content[buffer->point];
+        if ((currentChar == '(' && nextChar == ')') ||
+            (currentChar == '[' && nextChar == ']') ||
+            (currentChar == '{' && nextChar == '}') ||
+            (currentChar == '\'' && nextChar == '\'') ||
+            (currentChar == '\"' && nextChar == '\"')) {
+            // Remove both characters
+            memmove(buffer->content + buffer->point - 1, buffer->content + buffer->point + 1, buffer->size - buffer->point - 1);
+            buffer->size -= 2;
+            buffer->point--;
+            buffer->content[buffer->size] = '\0';
+            return;
+        }
+    }
+    // Default backspace behavior when not deleting a pair
+    if (buffer->point > 0) {
+        buffer->point--;
+        memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point);
+        buffer->size--;
+        buffer->content[buffer->size] = '\0';
+    }
 }
 
 void keyInputHandler(int key, int action, int mods) {
-    Buffer *buffer = &mainBuffer; // TODO track the current Buffer
-    if (!buffer) return;
+    Buffer *buffer = getActiveBuffer(&bm);
+    Buffer *minibuffer = getBuffer(&bm, "minibuffer");
 
-    /* bool shiftPressed = mods & GLFW_MOD_SHIFT; */
+    bool shiftPressed = mods & GLFW_MOD_SHIFT;
     bool ctrlPressed = mods & GLFW_MOD_CONTROL;
     bool altPressed = mods & GLFW_MOD_ALT;
 
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
         switch (key) {
+
         case KEY_BACKSPACE:
-            if (buffer->point > 0 && electric_pair_mode) {
-                // Check if backspacing over an opening character that has a closing pair right after
-                unsigned int currentChar = buffer->content[buffer->point - 1];
-                unsigned int nextChar = buffer->content[buffer->point];
-                if ((currentChar == '(' && nextChar == ')') ||
-                    (currentChar == '[' && nextChar == ']') ||
-                    (currentChar == '{' && nextChar == '}') ||
-                    (currentChar == '\'' && nextChar == '\'') ||
-                    (currentChar == '\"' && nextChar == '\"')) {
-                    // Remove both characters
-                    memmove(buffer->content + buffer->point - 1, buffer->content + buffer->point + 1, buffer->size - buffer->point - 1);
-                    buffer->size -= 2;
-                    buffer->point--;
-                    buffer->content[buffer->size] = '\0';
-                    break;
+            if (isearch.searching) {
+                if (altPressed || ctrlPressed) {
+                    backward_kill_word(minibuffer);
+                } else {
+                    backspace(minibuffer);
+                }
+                if (minibuffer->size > 0) {
+                    isearch_forward(buffer, minibuffer);
+                } else {
+                    // If the minibuffer is empty, move the cursor back to where the search started
+                    buffer->point = isearch.startIndex;
+                    /* isearch.searching = false; */
+                }
+            } else {
+                if (altPressed || ctrlPressed) {
+                    backward_kill_word(buffer);
+                } else {
+                    backspace(buffer);
                 }
             }
-            // Default backspace behavior when not deleting a pair
-            if (buffer->point > 0) {
-                buffer->point--;
-                memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point);
-                buffer->size--;
-                buffer->content[buffer->size] = '\0';
+            break;
+
+
+        case KEY_ENTER:
+            if (isearch.searching) {
+                minibuffer->size = 0;
+                minibuffer->point = 0;
+                minibuffer->content[0] = '\0';
+                isearch.searching = false;
+                printf("[STOPPED ISEARCH]\n");
+            } else {
+                if (buffer->point > 0 && buffer->point < buffer->size &&
+                    buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
+                    // Insert a newline and indent for the opening brace
+                    insertChar(buffer, '\n');
+                    indent(buffer);
+        
+                    // Record the position after the first indent, which is where the cursor should end up
+                    size_t newCursorPosition = buffer->point;
+
+                    // Insert another newline for the closing brace and indent again
+                    insertChar(buffer, '\n');
+                    indent(buffer);
+
+                    // Move cursor to the line between the braces
+                    buffer->point = newCursorPosition;
+                } else {
+                    insertChar(buffer, '\n');
+                }
+                indent(buffer);
             }
             break;
-        case KEY_ENTER:
-            insertChar(buffer, '\n');
+
+        case KEY_S:
+            if (ctrlPressed) {
+                if (!isearch.searching) { // Start a new search
+                    isearch.searching = true;
+                    printf("[STARTED ISEARCH]\n");
+                    isearch.searchBuffer = minibuffer;
+                    minibuffer->size = 0;
+                    minibuffer->content[0] = '\0';
+                    /* isearch.lastMatchIndex = buffer->point; */
+                    isearch.startIndex = buffer->point; // Safely setting start index
+                }
+            }
+            break;
+
+        case KEY_6:
+            if (altPressed && shiftPressed) delete_indentation(buffer);
+            break;
+        case KEY_TAB:
+            indent(buffer);
             break;
         case KEY_DOWN:
             next_line(buffer);
@@ -511,6 +316,9 @@ void keyInputHandler(int key, int action, int mods) {
         case KEY_A:
             if (ctrlPressed) move_beginning_of_line(buffer);
             break;
+        case KEY_HOME:
+            move_beginning_of_line(buffer);
+            break;
         case KEY_D:
             if (ctrlPressed) delete_char(buffer);
             break;
@@ -526,6 +334,12 @@ void keyInputHandler(int key, int action, int mods) {
         case KEY_MINUS:
             if (altPressed) previousTheme();
             break;
+        case KEY_LEFT_BRACKET:
+            if (altPressed) nextBuffer(&bm);
+            break;
+        case KEY_RIGHT_BRACKET:
+            if (altPressed) previousBuffer(&bm);
+            break;
         }
     }
     
@@ -537,33 +351,55 @@ void keyInputHandler(int key, int action, int mods) {
 }
 
 void textInputHandler(unsigned int codepoint) {
-    Buffer *buffer = &mainBuffer; // Assuming 'mainBuffer' is your current text editing buffer
+    Buffer *buffer = getActiveBuffer(&bm);
+    Buffer *minibuffer = getBuffer(&bm, "minibuffer");  // Ensure this is properly initialized to act as the minibuffer
+
     if (buffer != NULL) {
-        insertUnicodeCharacter(buffer, codepoint);
+        if (isearch.searching) {
+            // When search mode is active, append characters to the minibuffer
 
-        // Handle auto pair
-        if (electric_pair_mode) {
-            switch (codepoint) {
-            case '(':
-                insertUnicodeCharacter(buffer, ')');
-                break;
-            case '[':
-                insertUnicodeCharacter(buffer, ']');
-                break;
-            case '{':
-                insertUnicodeCharacter(buffer, '}');
-                break;
-            case '\'':
-                insertUnicodeCharacter(buffer, '\''); // single quotes
-                break;
-            case '\"':
-                insertUnicodeCharacter(buffer, '\"'); // double quotes
-                break;
+            if (isprint(codepoint)) {
+                insertChar(minibuffer, (char)codepoint);  // Append character to minibuffer
+                isearch_forward(buffer, minibuffer);      // Perform the search
             }
+        } else {
+            // Normal behavior when not in search mode
+            if ((codepoint == ')' || codepoint == ']' || codepoint == '}' || 
+                 codepoint == '\'' || codepoint == '\"') &&
+                buffer->point < buffer->size && buffer->content[buffer->point] == codepoint) {
+                right_char(buffer);
+            } else {
+                insertUnicodeCharacter(buffer, codepoint);
 
-            // Optionally, move the cursor back to between the pair of characters
-            if (codepoint == '(' || codepoint == '[' || codepoint == '{' || codepoint == '\'' || codepoint == '\"') {
-                buffer->point--;
+                if (electric_pair_mode) {
+                    switch (codepoint) {
+                    case '(':
+                        insertUnicodeCharacter(buffer, ')');
+                        break;
+                    case '[':
+                        insertUnicodeCharacter(buffer, ']');
+                        break;
+                    case '{':
+                        insertUnicodeCharacter(buffer, '}');
+                        break;
+                    case '\'':
+                        if (!(buffer->point > 1 && buffer->content[buffer->point - 2] == '\'')) {
+                            insertUnicodeCharacter(buffer, '\'');
+                        }
+                        break;
+                    case '\"':
+                        if (!(buffer->point > 1 && buffer->content[buffer->point - 2] == '\"')) {
+                            insertUnicodeCharacter(buffer, '\"');
+                        }
+                        break;
+                    }
+
+                    // Move the cursor back to between the pair of characters
+                    if (codepoint == '(' || codepoint == '[' || codepoint == '{' ||
+                        codepoint == '\'' || codepoint == '\"') {
+                        buffer->point--;
+                    }
+                }
             }
         }
     }
@@ -597,5 +433,108 @@ int encodeUTF8(char *out, unsigned int codepoint) {
         out[2] = 128 + ((codepoint >> 6) & 63);
         out[3] = 128 + (codepoint & 63);
         return 4;
+    }
+}
+
+void indent(Buffer *buffer) {
+    size_t cursor_row_start = 0, cursor_row_end = buffer->size;
+    int braceLevel = 0;
+    bool startsWithClosingBrace = false;
+
+    // Find the start of the current line
+    for (int i = buffer->point - 1; i >= 0; i--) {
+        if (buffer->content[i] == '\n') {
+            cursor_row_start = i + 1;
+            break;
+        }
+    }
+
+    // Find the end of the current line
+    for (size_t i = buffer->point; i < buffer->size; i++) {
+        if (buffer->content[i] == '\n') {
+            cursor_row_end = i;
+            break;
+        }
+    }
+
+    // Calculate the current brace level up to the start of the current line
+    for (size_t i = 0; i < cursor_row_start; ++i) {
+        char c = buffer->content[i];
+        if (c == '{') {
+            braceLevel++;
+        } else if (c == '}') {
+            braceLevel = (braceLevel > 0) ? braceLevel - 1 : 0;
+        }
+    }
+
+    // Check if the current line starts with a '}' before any other non-whitespace character
+    size_t firstNonWhitespace = cursor_row_start;
+    while (firstNonWhitespace < cursor_row_end && isspace(buffer->content[firstNonWhitespace])) {
+        firstNonWhitespace++;
+    }
+    if (firstNonWhitespace < cursor_row_end && buffer->content[firstNonWhitespace] == '}') {
+        startsWithClosingBrace = true;
+        braceLevel = (braceLevel > 0) ? braceLevel - 1 : 0;  // Decrement brace level for the line that starts with }
+    }
+
+    // Determine indentation level
+    int requiredIndentation = braceLevel * indentation;
+    int currentIndentation = 0;
+
+    // Count existing spaces at the beginning of the line
+    size_t i = cursor_row_start;
+    while (i < cursor_row_end && isspace(buffer->content[i])) {
+        if (buffer->content[i] == ' ') currentIndentation++;
+        i++;
+    }
+
+    // Adjust indentation to the required level
+    size_t old_point = buffer->point;  // Save old cursor position
+    buffer->point = cursor_row_start; // Move cursor to the start of the line
+
+    while (currentIndentation < requiredIndentation) {
+        insertChar(buffer, ' '); // Insert additional spaces
+        currentIndentation++;
+    }
+    while (currentIndentation > requiredIndentation && currentIndentation > 0) {
+        delete_char(buffer); // Delete excess spaces
+        currentIndentation--;
+    }
+
+    // Correct cursor position based on the previous position of non-whitespace text
+    if (old_point >= firstNonWhitespace) {
+        buffer->point = old_point - (firstNonWhitespace - cursor_row_start - requiredIndentation);
+    } else {
+        buffer->point = cursor_row_start + requiredIndentation;
+    }
+}
+
+
+void isearch_forward(Buffer *buffer, Buffer *minibuffer) {
+    if (!isearch.searching) {
+        isearch.searching = true;
+        isearch.searchBuffer = minibuffer;
+        isearch.startIndex = buffer->point;
+    }
+
+    minibuffer->content[minibuffer->size] = '\0'; // Ensure null-termination
+
+    char *match = strstr(buffer->content + isearch.startIndex, minibuffer->content);
+    if (match) {
+        size_t matchIndex = match - buffer->content;
+        buffer->point = matchIndex + minibuffer->size; // Move cursor to the end of the match
+        isearch.lastMatchIndex = matchIndex + 1; // Prepare for next incremental search
+    } else {
+        printf("No match found for '%s'\n", minibuffer->content);
+        // If no match found, simply do not rollback minibuffer to allow adding more characters
+        if (minibuffer->size > 0 && minibuffer->content[0] != '\0') {
+            // Manage the state only if the minibuffer is not empty
+            isearch.lastMatchIndex = buffer->point; // Reset search start for new inputs
+        } else {
+            // Reset everything if the minibuffer got cleared
+            minibuffer->size = 0;
+            minibuffer->content[0] = '\0';
+            isearch.searching = false;
+        }
     }
 }

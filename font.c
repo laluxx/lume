@@ -103,9 +103,8 @@ Font* loadFont(const char* fontPath, int fontSize) {
     return font;
 }
 
-
-
-void drawTextEx(Font* font, const char* text, float x, float y, float sx, float sy, Color textColor, Color highlightColor, int highlightPos, bool cursorVisible) {
+void drawTextEx(Font* font, const char* text, float x, float y, float sx, float sy,
+                Color textColor, Color highlightColor, int highlightPos, bool cursorVisible) {
     const char *p;
     int charPos = 0; // Position index of the character in the string
     float initialX = x;  // Save the starting x coordinate to reset to it on new lines
