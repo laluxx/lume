@@ -3,7 +3,7 @@
 #include "theme.h"
 
 int currentThemeIndex = 0;
-Theme themes[9];
+Theme themes[7];
 
 Color hexToColor(const char* hex) {
     int r, g, b;
@@ -20,20 +20,12 @@ void initThemes() {
         .minibuffer = hexToColor("#18181B"),
         .modeline = hexToColor("#222225"),
         .modeline_highlight = hexToColor("#222225"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
     };
 
     themes[1] = (Theme){
-        .name = "Catppuccin",
-        .bg = hexToColor("#1E1E2E"),
-        .cursor = hexToColor("#B4BEFE"),
-        .text = hexToColor("#CDD6F4"),
-        .minibuffer = hexToColor("#1E1E2E"),
-        .modeline = hexToColor("#181825"),
-        .modeline_highlight = hexToColor("#B4BEFE"),
-    };
-
-
-    themes[2] = (Theme){
         .name = "Gum",
         .bg = hexToColor("#14171E"),
         .cursor = hexToColor("#D6A0D1"),
@@ -41,6 +33,22 @@ void initThemes() {
         .minibuffer = hexToColor("#14171E"),
         .modeline = hexToColor("#191D26"),
         .modeline_highlight = hexToColor("#9587DE"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
+    };
+
+    themes[2] = (Theme){
+        .name = "Catppuccin",
+        .bg = hexToColor("#1E1E2E"),
+        .cursor = hexToColor("#B4BEFE"),
+        .text = hexToColor("#CDD6F4"),
+        .minibuffer = hexToColor("#1E1E2E"),
+        .modeline = hexToColor("#181825"),
+        .modeline_highlight = hexToColor("#B4BEFE"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
     };
 
     themes[3] = (Theme){
@@ -51,19 +59,12 @@ void initThemes() {
         .minibuffer = hexToColor("#1A1B26"),
         .modeline = hexToColor("#161620"),
         .modeline_highlight = hexToColor("#7AA2F7"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
     };
   
     themes[4] = (Theme){
-        .name = "Nature",
-        .bg = hexToColor("#070707"),
-        .cursor = hexToColor("#658B5F"),
-        .text = hexToColor("#C0ACD1"),
-        .minibuffer = hexToColor("#090909"),
-        .modeline = hexToColor("#050505"),
-        .modeline_highlight = hexToColor("#658B5F"),
-    };
-
-    themes[5] = (Theme){
         .name = "Doom-one",
         .bg = hexToColor("#282C34"),
         .cursor = hexToColor("#51AFEF"),
@@ -71,9 +72,12 @@ void initThemes() {
         .minibuffer = hexToColor("#21242B"),
         .modeline = hexToColor("#1D2026"),
         .modeline_highlight = hexToColor("#51AFEF"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
     };
 
-    themes[6] = (Theme){
+    themes[5] = (Theme){
         .name = "City-lights",
         .bg = hexToColor("#1D252C"),
         .cursor = hexToColor("#51AFEF"),
@@ -81,9 +85,12 @@ void initThemes() {
         .minibuffer = hexToColor("#181E24"),
         .modeline = hexToColor("#181F25"),
         .modeline_highlight = hexToColor("#5EC4FF"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
     };
 
-    themes[7] = (Theme){
+    themes[6] = (Theme){
         .name = "Molokai",
         .bg = hexToColor("#1C1E1F"),
         .cursor = hexToColor("#FB2874"),
@@ -91,16 +98,9 @@ void initThemes() {
         .minibuffer = hexToColor("#222323"),
         .modeline = hexToColor("#2D2E2E"),
         .modeline_highlight = hexToColor("#B6E63E"),
-    };
-
-    themes[8] = (Theme){
-        .name = "Sunset",
-        .bg = hexToColor("#0C0D12"),
-        .cursor = hexToColor("#D9A173"),
-        .text = hexToColor("#CCCCC5"),
-        .minibuffer = hexToColor("#0C0D12"),
-        .modeline = hexToColor("#08090C"),
-        .modeline_highlight = hexToColor("#D9A173"),
+        .show_paren_match = hexToColor("#222225"),
+        .isearch_highlight = hexToColor("#303035"),
+        .minibuffer_prompt = hexToColor("#4d9391"),
     };
 }
 

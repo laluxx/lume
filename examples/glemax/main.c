@@ -8,6 +8,7 @@
 /* #include <string.h> */
 
 // TODO Region
+// TODO message(), and FIX it while the minibuffer is active [message]
 // TODO isearch-backward and color unmatched characters
 // TODO forward-paragraph
 // TODO backward-paragraph
@@ -17,7 +18,7 @@
 // TODO syntax highlighting
 // TODO unhardcode the keybinds
 
-// TODO Don't fetch for the same buffer multiple times
+// TODO IMPORTANT Don't fetch for the same buffer multiple times
 // per frame, do it only once and pass it arround.
 
 
@@ -29,6 +30,8 @@ typedef struct {
     size_t lastMatchIndex;
     size_t startIndex;
     bool searching;
+    char *lastSearch;
+    bool wrap;
 } ISearch;
 
 ISearch isearch = {0};
@@ -39,9 +42,15 @@ float blink_cursor_delay = 0.5; // Seconds of idle time before the first blink o
 float blink_cursor_interval = 0.5; // Lenght of cursor blink interval in seconds.
 int blink_cursor_blinks = 10; // How many times to blink before stopping.
 int indentation = 4;
-    
+bool show_paren_mode = true;
+float show_paren_delay = 0.125; // Time in seconds to delay before showing a matching paren.
+
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color);
-void isearch_forward(Buffer *buffer, Buffer *minibuffer);
+void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex);
+
+void highlightMatchingBrackets(Buffer *buffer, Font *font, Color highlightColor);
+void highlightAllOccurrences(Buffer *buffer, const char *searchText, Font *font, Color highlightColor);
+void drawHighlight(Buffer *buffer, Font *font, size_t pos, size_t length, Color highlightColor);
 
 void keyInputHandler(int key, int action, int mods);
 void textInputHandler(unsigned int codepoint);
@@ -110,9 +119,9 @@ int main() {
 
     initBufferManager(&bm);
     newBuffer(&bm, "minibuffer");
+    newBuffer(&bm, "prompt");
     newBuffer(&bm, "second");
     newBuffer(&bm, "main");
-
 
     
     while (!windowShouldClose()) {
@@ -122,20 +131,47 @@ int main() {
 
 
         Buffer *minibuffer = getBuffer(&bm, "minibuffer");
+        Buffer *prompt = getBuffer(&bm, "prompt");
         Buffer *currentBuffer = getActiveBuffer(&bm);        
         
-        /* minibuffer->content = "porcodio"; */
-            
         beginDrawing();
         clearBackground(CT.bg);
+
+
+        float promptWidth = 0;
+
+        for (size_t i = 0; i < strlen(prompt->content); i++) {
+            promptWidth += getCharacterWidth(minifont, prompt->content[i]);
+        }
+
+        bool set;
+        if (isearch.searching) {
+            if (!set) {
+                prompt->content = strdup("isearch: ");
+                set = true;
+            }
+        } else {
+            if (set) {
+                prompt->content = strdup("");
+                set = false;
+            }
+        }
+
+        // PROMPT TEXT
+        drawTextEx(minifont, prompt->content,
+                   0, minifont->ascent - minifont->descent * 1.3,
+                   1.0, 1.0, CT.minibuffer_prompt, CT.bg, -1, cursorVisible);
 
 
         useShader("simple");
         drawRectangle((Vec2f){0, minifont->ascent + minifont->descent}, (Vec2f){sw, 25}, CT.modeline); //21
 
+        highlightMatchingBrackets(currentBuffer, font, CT.show_paren_match);
+        if (isearch.searching) highlightAllOccurrences(currentBuffer, minibuffer->content, font, CT.isearch_highlight);
+
 
         if (isCurrentBuffer(&bm, "minibuffer")) {
-            drawCursor(currentBuffer, minifont, 0, 0 + minifont->descent,
+            drawCursor(currentBuffer, minifont, promptWidth, 0 + minifont->descent,
                        CT.cursor);
         } else {
             drawCursor(currentBuffer, font, 0, sh - font->ascent, CT.cursor);
@@ -151,14 +187,17 @@ int main() {
                        currentBuffer->point, cursorVisible);
         } 
 
+
+
+
         // MINIBUFFER TEXT
         if (isCurrentBuffer(&bm, "minibuffer")) {
             drawTextEx(minifont, minibuffer->content,
-                       0, + minifont->ascent - minifont->descent * 1.3,
+                       promptWidth, minifont->ascent - minifont->descent * 1.3,
                        1.0, 1.0, WHITE, CT.bg, currentBuffer->point, cursorVisible);
         } else {
             drawTextEx(minifont, minibuffer->content,
-                       0, + minifont->ascent - minifont->descent * 1.3,
+                       promptWidth, minifont->ascent - minifont->descent * 1.3,
                        1.0, 1.0, WHITE, CT.bg, -1, cursorVisible);
         }
         
@@ -217,11 +256,11 @@ void keyInputHandler(int key, int action, int mods) {
                     backspace(minibuffer);
                 }
                 if (minibuffer->size > 0) {
-                    isearch_forward(buffer, minibuffer);
+                    isearch_forward(buffer, minibuffer, false);
                 } else {
                     // If the minibuffer is empty, move the cursor back to where the search started
                     buffer->point = isearch.startIndex;
-                    /* isearch.searching = false; */
+                    // isearch.searching = false;  NOTE Keep searching (like emacs)
                 }
             } else {
                 if (altPressed || ctrlPressed) {
@@ -235,11 +274,13 @@ void keyInputHandler(int key, int action, int mods) {
 
         case KEY_ENTER:
             if (isearch.searching) {
+                isearch.lastSearch = strdup(minibuffer->content);
                 minibuffer->size = 0;
                 minibuffer->point = 0;
                 minibuffer->content[0] = '\0';
                 isearch.searching = false;
                 printf("[STOPPED ISEARCH]\n");
+                printf("lastsearch: %s\n", isearch.lastSearch);
             } else {
                 if (buffer->point > 0 && buffer->point < buffer->size &&
                     buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
@@ -265,18 +306,25 @@ void keyInputHandler(int key, int action, int mods) {
 
         case KEY_S:
             if (ctrlPressed) {
-                if (!isearch.searching) { // Start a new search
+                if (!isearch.searching) {
                     isearch.searching = true;
-                    printf("[STARTED ISEARCH]\n");
-                    isearch.searchBuffer = minibuffer;
                     minibuffer->size = 0;
                     minibuffer->content[0] = '\0';
-                    /* isearch.lastMatchIndex = buffer->point; */
-                    isearch.startIndex = buffer->point; // Safely setting start index
+                    isearch.startIndex = buffer->point;
+                    printf("[STARTED ISEARCH]\n");
+                } else {
+                    // Ensures that we start the search from the right point even if minibuffer hasn't changed
+                    if (minibuffer->size == 0 && isearch.lastSearch) {
+                        if (minibuffer->content) free(minibuffer->content);
+                        minibuffer->content = strdup(isearch.lastSearch);
+                        minibuffer->size = strlen(minibuffer->content);
+                        minibuffer->point = minibuffer->size;
+                    }
+                    isearch.startIndex = buffer->point;  // Update to ensure search starts from next position
+                    isearch_forward(buffer, minibuffer, true);  // Continue search from new start index
                 }
             }
             break;
-
         case KEY_6:
             if (altPressed && shiftPressed) delete_indentation(buffer);
             break;
@@ -360,7 +408,7 @@ void textInputHandler(unsigned int codepoint) {
 
             if (isprint(codepoint)) {
                 insertChar(minibuffer, (char)codepoint);  // Append character to minibuffer
-                isearch_forward(buffer, minibuffer);      // Perform the search
+                isearch_forward(buffer, minibuffer, false);      // Perform the search
             }
         } else {
             // Normal behavior when not in search mode
@@ -510,31 +558,129 @@ void indent(Buffer *buffer) {
 }
 
 
-void isearch_forward(Buffer *buffer, Buffer *minibuffer) {
-    if (!isearch.searching) {
-        isearch.searching = true;
-        isearch.searchBuffer = minibuffer;
-        isearch.startIndex = buffer->point;
-    }
 
-    minibuffer->content[minibuffer->size] = '\0'; // Ensure null-termination
 
-    char *match = strstr(buffer->content + isearch.startIndex, minibuffer->content);
-    if (match) {
-        size_t matchIndex = match - buffer->content;
-        buffer->point = matchIndex + minibuffer->size; // Move cursor to the end of the match
-        isearch.lastMatchIndex = matchIndex + 1; // Prepare for next incremental search
+
+
+void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex) {
+    const char *start = buffer->content + isearch.startIndex;
+    const char *found = strstr(start, minibuffer->content);
+
+    if (found) {
+        size_t matchIndex = found - buffer->content;
+        buffer->point = matchIndex + strlen(minibuffer->content);  // Move cursor to end of found text
+        isearch.lastMatchIndex = matchIndex + 1;  // Prepare for next search from next character
+        if (updateStartIndex) {
+            isearch.startIndex = buffer->point;  // Update start index for next search only if required
+        }
+        printf("Found '%s' at position %zu\n", minibuffer->content, matchIndex);
+        isearch.wrap = false;  // Reset wrap around flag after a successful find
     } else {
-        printf("No match found for '%s'\n", minibuffer->content);
-        // If no match found, simply do not rollback minibuffer to allow adding more characters
-        if (minibuffer->size > 0 && minibuffer->content[0] != '\0') {
-            // Manage the state only if the minibuffer is not empty
-            isearch.lastMatchIndex = buffer->point; // Reset search start for new inputs
+        if (!isearch.wrap) {
+            printf("Reached end of buffer. Press Ctrl+S again to wrap search.\n");
+            isearch.wrap = true;  // Set flag to allow wrapping on next Ctrl+S press
         } else {
-            // Reset everything if the minibuffer got cleared
-            minibuffer->size = 0;
-            minibuffer->content[0] = '\0';
-            isearch.searching = false;
+            if (updateStartIndex) {
+                isearch.startIndex = 0;  // Wrap around the search
+                isearch.wrap = false;  // Reset wrap around flag
+                isearch_forward(buffer, minibuffer, false);  // Optionally, continue search from start
+            }
         }
     }
+}
+ 
+
+
+// TODO use show_paren_delay
+// TODO highlifght the 2 characters as well
+void highlightMatchingBrackets(Buffer *buffer, Font *font, Color highlightColor) {
+    if (!show_paren_mode) return;
+    if (buffer->point > buffer->size) return;
+    
+    char currentChar = buffer->point < buffer->size ? buffer->content[buffer->point] : '\0';
+    char prevChar = buffer->point > 0 ? buffer->content[buffer->point - 1] : '\0';
+    char matchChar = '\0';
+    int direction = 0;
+    int searchPos = buffer->point;
+
+    if (buffer->point < buffer->size && strchr("({[", currentChar)) {
+        matchChar = currentChar == '(' ? ')' :
+            currentChar == '[' ? ']' : '}';
+        direction = 1;
+    } else if (prevChar == ')' || prevChar == ']' || prevChar == '}') {
+        currentChar = prevChar;
+        matchChar = currentChar == ')' ? '(' :
+            currentChar == ']' ? '[' : '{';
+        direction = -1;
+        searchPos = buffer->point - 1;
+    } else {
+        return;  // Not on or immediately after a bracket
+    }
+
+    int depth = 1;
+    searchPos += direction;
+
+    // Search for the matching bracket
+    while (searchPos >= 0 && searchPos < buffer->size) {
+        char c = buffer->content[searchPos];
+        if (c == currentChar) {
+            depth++;
+        } else if (c == matchChar) {
+            depth--;
+            if (depth == 0) {
+                drawHighlight(buffer, font, buffer->point - (direction == -1 ? 1 : 0), 1, highlightColor);
+                drawHighlight(buffer, font, searchPos, 1, highlightColor);
+                return;
+            }
+
+        }
+        searchPos += direction;
+    }
+}
+
+
+void highlightAllOccurrences(Buffer *buffer, const char *searchText, Font *font, Color highlightColor) {
+    if (!searchText || strlen(searchText) == 0 || !buffer || !buffer->content) return;
+
+    size_t searchLength = strlen(searchText);
+    const char *current = buffer->content;
+    size_t pos = 0;
+
+    while ((current = strstr(current, searchText)) != NULL) {
+        pos = current - buffer->content;
+        drawHighlight(buffer, font, pos, searchLength, highlightColor);
+        current += searchLength; // Move past the current match
+
+        // Stop searching if the next search start is beyond buffer content
+        if (current >= buffer->content + buffer->size) break;
+    }
+}
+
+void drawHighlight(Buffer *buffer, Font *font, size_t pos, size_t length, Color highlightColor) {
+    float x = 0, y = 0;
+    int lineCount = 0;
+    
+    // Calculate position in pixels where to start the highlight
+    for (int i = 0; i < pos; i++) {
+        if (buffer->content[i] == '\n') {
+            lineCount++;
+            x = 0;
+        } else {
+            x += getCharacterWidth(font, buffer->content[i]);
+        }
+    }
+
+    // Calculate the width of the highlighted area
+    float highlightWidth = 0;
+    for (int i = pos; i < pos + length && buffer->content[i] != '\n'; i++) {
+        highlightWidth += getCharacterWidth(font, buffer->content[i]);
+    }
+
+    y = lineCount * (font->ascent + font->descent);
+    y = getScreenHeight() - y - font->ascent - font->descent;
+
+    Vec2f position = {x, y};
+    Vec2f size = {highlightWidth, font->ascent + font->descent};
+
+    drawRectangle(position, size, highlightColor);
 }

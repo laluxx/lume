@@ -11,6 +11,9 @@ typedef struct {
     Color minibuffer;
     Color modeline;
     Color modeline_highlight;
+    Color show_paren_match;
+    Color isearch_highlight;
+    Color minibuffer_prompt;
 } Theme;
 
 extern Theme themes[];
