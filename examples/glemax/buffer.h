@@ -5,12 +5,19 @@
 #include <stdbool.h>
 
 typedef struct {
+    size_t start;   // Start position of the region
+    size_t end;     // End position of the region
+    bool active;    // Whether the region is currently active
+} Region;
+
+typedef struct {
     char *content;   // Text content
     size_t size;     // Current size of content
     size_t capacity; // Allocated capacity
     size_t point;    // Cursor position
     char *name;      // Buffer name
     bool readOnly;   // Read-only flag
+    Region region;
 } Buffer;
 
 typedef struct {
@@ -32,6 +39,11 @@ Buffer *getBuffer(BufferManager *manager, const char *name);
 bool isCurrentBuffer(BufferManager *manager, const char *bufferName);
 void nextBuffer(BufferManager *manager);
 void previousBuffer(BufferManager *manager);
+
+void activateRegion(Buffer *buffer);
+void updateRegion(Buffer *buffer, size_t new_point);
+void deactivateRegion(Buffer *buffer);
+
 
 
 #endif

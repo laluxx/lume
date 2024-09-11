@@ -10,6 +10,7 @@ void initBuffer(Buffer *buffer, const char *name) {
     buffer->point = 0;
     buffer->readOnly = false; // Default to writable
     buffer->name = strdup(name); // Duplicate the name for ownership
+    buffer->region.active = false;
     if (buffer->content && buffer->name) {
         buffer->content[0] = '\0';
     } else {
@@ -118,3 +119,38 @@ void previousBuffer(BufferManager *manager) {
         printf("Switched to previous buffer: %s\n", manager->activeName);
     }
 }
+
+
+
+void activateRegion(Buffer *buffer) {
+    if (!buffer->region.active) {
+        buffer->region.start = buffer->region.end = buffer->point;
+        buffer->region.active = true;
+    }
+    printf("ACTIVATED REGION\n");
+}
+
+void updateRegion(Buffer *buffer, size_t new_point) {
+    if (buffer->region.active) {
+        buffer->region.end = new_point;
+    }
+}
+
+void deactivateRegion(Buffer *buffer) {
+    buffer->region.active = false;
+    printf("DEACTIVATED REGION\n");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

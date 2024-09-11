@@ -14,6 +14,7 @@ typedef struct {
     Color show_paren_match;
     Color isearch_highlight;
     Color minibuffer_prompt;
+    Color region;
 } Theme;
 
 extern Theme themes[];

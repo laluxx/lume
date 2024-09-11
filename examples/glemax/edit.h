@@ -18,6 +18,9 @@ void indent(Buffer *buffer);
 void delete_indentation(Buffer *buffer);
 bool isWordChar(char c);
 void backward_kill_word(Buffer *buffer);
+void addIndentation(Buffer *buffer, int indentation);
+void removeIndentation(Buffer *buffer, int indentation);
 
+void kill_region(Buffer *buffer);
 
 #endif

@@ -257,3 +257,105 @@ void backward_kill_word(Buffer *buffer) {
     }
 }
 
+
+void addIndentation(Buffer *buffer, int indentation) {
+    // Ensure there is enough capacity in the buffer
+    if (buffer->size + indentation >= buffer->capacity) {
+        buffer->capacity *= 2;
+        char *newContent = realloc(buffer->content, buffer->capacity * sizeof(char));
+        if (!newContent) {
+            fprintf(stderr, "Failed to reallocate memory for buffer.\n");
+            return;
+        }
+        buffer->content = newContent;
+    }
+
+    int lineStart = buffer->point;
+    while (lineStart > 0 && buffer->content[lineStart - 1] != '\n') {
+        lineStart--;
+    }
+
+    // Add spaces at the beginning of the line
+    memmove(buffer->content + lineStart + indentation, buffer->content + lineStart, buffer->size - lineStart + 1); // Including null terminator
+    for (int i = 0; i < indentation; i++) {
+        buffer->content[lineStart + i] = ' ';
+    }
+    buffer->size += indentation;
+
+    // Adjust cursor position relative to the added spaces if cursor is beyond the added spaces
+    if (buffer->point >= lineStart) {
+        buffer->point += indentation;
+    }
+}
+
+void removeIndentation(Buffer *buffer, int indentation) {
+    int lineStart = buffer->point;
+    while (lineStart > 0 && buffer->content[lineStart - 1] != '\n') {
+        lineStart--;
+    }
+
+    // Determine the actual number of spaces we can remove
+    int count = 0;
+    for (int i = lineStart; i < lineStart + indentation && buffer->content[i] == ' '; i++) {
+        count++;
+    }
+
+    if (count > 0) {
+        memmove(buffer->content + lineStart, buffer->content + lineStart + count, buffer->size - (lineStart + count) + 1); // Including null terminator
+        buffer->size -= count;
+
+        // Adjust cursor position relative to the removed spaces if cursor is beyond the removed spaces
+        if (buffer->point > lineStart + count) {
+            buffer->point -= count;
+        } else if (buffer->point > lineStart) {
+            buffer->point = lineStart;
+        }
+    }
+}
+
+
+// TODO Kill ring
+void kill_region(Buffer *buffer) {
+    if (!buffer->region.active) {
+        printf("No active region to kill.\n");
+        return;  // No region active, nothing to kill
+    }
+
+    size_t start = buffer->region.start;
+    size_t end = buffer->region.end;
+
+    // Ensure start is always less than end
+    if (start > end) {
+        size_t temp = start;
+        start = end;
+        end = temp;
+    }
+
+    if (end > buffer->size) end = buffer->size;  // Clamp end to buffer size
+
+    size_t region_length = end - start;
+    if (region_length == 0) {
+        printf("Empty region, nothing to kill.\n");
+        return;  // Empty region, nothing to kill
+    }
+
+    // Optional: Store cut text for later use (clipboard functionality)
+    char *cut_text = malloc(region_length + 1);
+    if (cut_text) {
+        memcpy(cut_text, buffer->content + start, region_length);
+        cut_text[region_length] = '\0';
+        // You would typically add this text to a clipboard buffer here
+        printf("Region killed: \"%s\"\n", cut_text);
+        free(cut_text);
+    }
+
+    // Remove the region text from the buffer
+    memmove(buffer->content + start, buffer->content + end, buffer->size - end + 1);
+    buffer->size -= region_length;
+
+    // Update cursor position to start of the killed region
+    buffer->point = start;
+
+    // Deactivate region after killing it
+    buffer->region.active = false;
+}
