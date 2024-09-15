@@ -59,7 +59,7 @@ int main(void) {
 
     
     initFreeType();
-    Font *jetb = loadFont("radon.otf", 100);
+    Font *jetb = loadFont("jetb.ttf", 100);
 
     while (!glfwWindowShouldClose(window)) {
         
@@ -115,7 +115,7 @@ int main(void) {
         flush();
         
 
-        drawText(jetb, "Hello, World!", 800.0, 800.0, WHITE);
+        drawText(jetb, "Hello, World! j", 800.0, 800.0, WHITE);
 
         
         useShader("wave");

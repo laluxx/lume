@@ -3,21 +3,81 @@
 #include <stdio.h>
 #include <string.h>
 
-void initBuffer(Buffer *buffer, const char *name) {
-    buffer->capacity = 1024; // Initial capacity
+void initBuffer(Buffer *buffer, const char *name, const char *path) {
+    buffer->capacity = 1024;  // Initial capacity
     buffer->content = malloc(buffer->capacity);
     buffer->size = 0;
     buffer->point = 0;
-    buffer->readOnly = false; // Default to writable
-    buffer->name = strdup(name); // Duplicate the name for ownership
+    buffer->readOnly = false;
+    buffer->name = strdup(name);  // Duplicate the name for ownership
+    buffer->path = strdup(path);  // Duplicate the path for ownership
     buffer->region.active = false;
-    if (buffer->content && buffer->name) {
-        buffer->content[0] = '\0';
-    } else {
+    
+    if (buffer->content == NULL || buffer->name == NULL || buffer->path == NULL) {
         fprintf(stderr, "Failed to allocate memory for buffer.\n");
         exit(EXIT_FAILURE);
+    } else {
+        buffer->content[0] = '\0';  // Initialize content as empty string
     }
 }
+
+void newBuffer(BufferManager *manager, const char *name, const char *path) {
+    Buffer *buffer = malloc(sizeof(Buffer));
+    if (buffer == NULL) {
+        fprintf(stderr, "Failed to allocate memory for new buffer.\n");
+        return;
+    }
+    
+    initBuffer(buffer, name, path);
+    
+    if (manager->count >= manager->capacity) {
+        manager->capacity *= 2;
+        Buffer **newBuffers = realloc(manager->buffers, sizeof(Buffer*) * manager->capacity);
+        if (newBuffers == NULL) {
+            fprintf(stderr, "Failed to expand buffer manager capacity.\n");
+            free(buffer);
+            return;
+        }
+        manager->buffers = newBuffers;
+    }
+    
+    manager->buffers[manager->count++] = buffer;
+    manager->activeIndex = manager->count - 1;  // Set new buffer as active
+    free(manager->activeName);
+    manager->activeName = strdup(name);
+}
+
+
+/* void initBuffer(Buffer *buffer, const char *name) { */
+/*     buffer->capacity = 1024; // Initial capacity */
+/*     buffer->content = malloc(buffer->capacity); */
+/*     buffer->size = 0; */
+/*     buffer->point = 0; */
+/*     buffer->readOnly = false; */
+/*     buffer->path = "~/"; */
+/*     buffer->name = strdup(name); // Duplicate the name for ownership */
+/*     buffer->region.active = false; */
+/*     if (buffer->content && buffer->name) { */
+/*         buffer->content[0] = '\0'; */
+/*     } else { */
+/*         fprintf(stderr, "Failed to allocate memory for buffer.\n"); */
+/*         exit(EXIT_FAILURE); */
+/*     } */
+/* } */
+
+/* void newBuffer(BufferManager *manager, const char *name) { */
+/*     Buffer *buffer = malloc(sizeof(Buffer)); */
+/*     initBuffer(buffer, name); */
+/*     if (manager->count >= manager->capacity) { */
+/*         manager->capacity *= 2; */
+/*         manager->buffers = realloc(manager->buffers, sizeof(Buffer*) * manager->capacity); */
+/*     } */
+/*     manager->buffers[manager->count++] = buffer; */
+/*     manager->activeIndex = manager->count - 1; // Set new buffer as active */
+/*     free(manager->activeName); // Free old name */
+/*     manager->activeName = strdup(name); // Set new active name */
+/* } */
+
 
 void freeBuffer(Buffer *buffer) {
     free(buffer->content);
@@ -51,29 +111,19 @@ void freeBufferManager(BufferManager *manager) {
     manager->activeIndex = -1;
 }
 
-void newBuffer(BufferManager *manager, const char *name) {
-    Buffer *buffer = malloc(sizeof(Buffer));
-    initBuffer(buffer, name);
-    if (manager->count >= manager->capacity) {
-        manager->capacity *= 2;
-        manager->buffers = realloc(manager->buffers, sizeof(Buffer*) * manager->capacity);
-    }
-    manager->buffers[manager->count++] = buffer;
-    manager->activeIndex = manager->count - 1; // Set new buffer as active
-    free(manager->activeName); // Free old name
-    manager->activeName = strdup(name); // Set new active name
-}
+//HERE
 
-void switchToBuffer(BufferManager *manager, const char *name) {
-    for (int i = 0; i < manager->count; i++) {
-        if (strcmp(manager->buffers[i]->name, name) == 0) {
-            manager->activeIndex = i;
-            free(manager->activeName);
-            manager->activeName = strdup(name);
+
+void switchToBuffer(BufferManager *bm, const char *bufferName) {
+    for (int i = 0; i < bm->count; i++) {
+        if (strcmp(bm->buffers[i]->name, bufferName) == 0) {
+            if (strcmp(getActiveBuffer(bm)->name, "minibuffer") != 0) {
+                bm->lastBuffer = getActiveBuffer(bm);
+            }
+            bm->activeIndex = i;
             return;
         }
     }
-    printf("Buffer named '%s' not found.\n", name);
 }
 
 Buffer *getActiveBuffer(BufferManager *manager) {
@@ -127,7 +177,6 @@ void activateRegion(Buffer *buffer) {
         buffer->region.start = buffer->region.end = buffer->point;
         buffer->region.active = true;
     }
-    printf("ACTIVATED REGION\n");
 }
 
 void updateRegion(Buffer *buffer, size_t new_point) {
@@ -138,18 +187,47 @@ void updateRegion(Buffer *buffer, size_t new_point) {
 
 void deactivateRegion(Buffer *buffer) {
     buffer->region.active = false;
-    printf("DEACTIVATED REGION\n");
 }
 
 
 
+void setBufferContent(Buffer *buffer, const char *newContent) {
+    size_t newContentSize = strlen(newContent) + 1; // +1 for the null terminator
+
+    // Check if buffer's current capacity is insufficient
+    if (buffer->capacity < newContentSize) {
+        char *newBufferContent = realloc(buffer->content, newContentSize);
+        if (!newBufferContent) {
+            fprintf(stderr, "Failed to allocate memory for buffer content.\n");
+            exit(EXIT_FAILURE);
+        }
+        buffer->content = newBufferContent;
+        buffer->capacity = newContentSize;
+    }
+
+    // Copy new content to buffer
+    strcpy(buffer->content, newContent);
+    buffer->size = newContentSize - 1; // Not counting the null terminator
+    buffer->point = buffer->size; // Optionally reset the cursor position
+}
 
 
 
+void message(BufferManager *bm, const char *message) {
+    Buffer *minibuffer = getBuffer(bm, "minibuffer");
+    if (minibuffer) {
+        setBufferContent(minibuffer, message);
+    } else {
+        fprintf(stderr, "Minibuffer not found.\n");
+    }
+}
 
-
-
-
+void cleanBuffer(BufferManager *bm, char *name) {
+    Buffer *buffer = getBuffer(bm, name);
+    buffer->size = 0;
+    buffer->point = 0;
+    buffer->content[0] = '\0';
+}
 
 
 

@@ -5,29 +5,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-/* #include <string.h> */
 
-// TODO message(), and FIX it while the minibuffer is active [message]
+#include <dirent.h>
+
+// TODO message(), and FIX it while the minibuffer is active [message] and fix the key cleanup
 // TODO isearch-backward and color unmatched characters
-// TODO duplicate-line
-// TODO forward-paragraph
-// TODO backward-paragraph
-// TODO forward-word
-// TODO backward-word
 // TODO scrolling, and recenter_top_bottom
 // TODO syntax highlighting
 // TODO unhardcode the keybinds
 // TODO check if the lastmatchindex changes and stop search (like for moving)
 // TODO Multiline in the minibuffer
-// TODO Kill ring
 // TODO Window manager
+// TODO save-buffer
+// TODO M-x
+// TODO rainbow-mode
+// TODO ) inside () shoudl jumpt to the closing one not move right once
+// TODO add sx and sy parameters to drawCursor()
+// FIXME use setBufferContent() to set the prompt aswell
 
 // TODO IMPORTANT Don't fetch for the same buffer multiple times
 // per frame, do it only once and pass it arround.
 
+void find_file(BufferManager *bm);
+char* autocomplete_path(const char* input);
+void fetch_completions(const char* input);
+
 
 // ENGINE
-// TODO Scissors
+// TODO Subpixel font rendering
 
 typedef struct {
     Buffer *searchBuffer;
@@ -38,8 +43,19 @@ typedef struct {
     bool wrap;
 } ISearch;
 
+typedef struct {
+    char** items;        // Array of completion strings
+    int count;           // Number of completions
+    int currentIndex;    // Current index in the completion list
+    bool isActive;       // Is completion active
+} Completion;
+
+Completion completion = {0};
+
+
 ISearch isearch = {0};
 BufferManager bm = {0};
+KillRing kr = {0};
 
 bool electric_pair_mode = true; // TODO Wrap selection for () [] {} '' ""
 bool blink_cursor_mode = true;
@@ -49,6 +65,7 @@ int blink_cursor_blinks = 10; // How many times to blink before stopping.
 int indentation = 4;
 bool show_paren_mode = true;
 float show_paren_delay = 0.125; // Time in seconds to delay before showing a matching paren.
+int kill_ring_max = 120; // Maximum length of kill ring before oldest elements are thrown away.
 
 void drawCursor(Buffer *buffer, Font *font, float x, float y, Color color);
 void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex);
@@ -116,18 +133,19 @@ int sh = 1080;
 int main() {
     initThemes();
 
-    initWindow(sw, sh, "main.c - Glemax");
+    initWindow(sw, sh, "*scratch* - Glemax");
     registerTextInputCallback(textInputHandler);
     registerKeyInputCallback(keyInputHandler);
 
-    Font *font = loadFont("jetb.ttf", 40); // 40
-    Font *minifont = loadFont("jetb.ttf", 28); // 21
+    Font *font = loadFont("jetb.ttf", 15); // 15
+    Font *minifont = loadFont("jetb.ttf", 15); // 15
 
+    initKillRing(&kr, kill_ring_max);
     initBufferManager(&bm);
-    newBuffer(&bm, "minibuffer");
-    newBuffer(&bm, "prompt");
-    newBuffer(&bm, "second");
-    newBuffer(&bm, "main");
+    newBuffer(&bm, "minibuffer", "~/");
+    newBuffer(&bm, "prompt", "~/");
+    newBuffer(&bm, "*scratch*", "~/");
+    bm.lastBuffer = getBuffer(&bm, "*scratch*");
 
     
     while (!windowShouldClose()) {
@@ -140,7 +158,6 @@ int main() {
         Buffer *prompt = getBuffer(&bm, "prompt");
         Buffer *currentBuffer = getActiveBuffer(&bm);        
         
-        updateRegion(currentBuffer, currentBuffer->point);
         beginDrawing();
         clearBackground(CT.bg);
 
@@ -151,19 +168,6 @@ int main() {
             promptWidth += getCharacterWidth(minifont, prompt->content[i]);
         }
 
-        bool set;
-        if (isearch.searching) {
-            if (!set) {
-                prompt->content = strdup("I-search: ");
-                set = true;
-            }
-        } else {
-            if (set) {
-                prompt->content = strdup("");
-                set = false;
-            }
-        }
-
         // PROMPT TEXT
         drawTextEx(minifont, prompt->content,
                    0, minifont->ascent - minifont->descent * 1.3,
@@ -171,11 +175,15 @@ int main() {
 
 
         useShader("simple");
-        drawRectangle((Vec2f){0, minifont->ascent + minifont->descent}, (Vec2f){sw, 25}, CT.modeline); //21
+        float minibufferHeight = minifont->ascent + minifont->descent;
+        float modelineHeight = 25.0;
+
+        drawRectangle((Vec2f){0, minibufferHeight}, (Vec2f){sw, modelineHeight}, CT.modeline); //21
 
         highlightMatchingBrackets(currentBuffer, font, CT.show_paren_match);
         if (isearch.searching) highlightAllOccurrences(currentBuffer, minibuffer->content, font, CT.isearch_highlight);
 
+        updateRegion(currentBuffer, currentBuffer->point);
         drawRegion(currentBuffer, font, CT.region);
 
 
@@ -187,17 +195,22 @@ int main() {
         }
 
         flush();
-        
+
         // BUFFER TEXT
+        beginScissorMode((Vec2f){0, minibufferHeight + modelineHeight}, (Vec2f) {sw, sh - minibufferHeight});
         if (!isCurrentBuffer(&bm, "minibuffer")) {
             drawTextEx(font, currentBuffer->content,
                        0, sh - font->ascent + font->descent, 1.0, 1.0,
                        WHITE, CT.bg,
                        currentBuffer->point, cursorVisible);
-        } 
-
-
-
+        } else {
+            drawTextEx(font, bm.lastBuffer->content,
+                       0, sh - font->ascent + font->descent, 1.0, 1.0,
+                       WHITE, CT.bg,
+                       -1, cursorVisible);
+            
+        }
+        endScissorMode();
 
         // MINIBUFFER TEXT
         if (isCurrentBuffer(&bm, "minibuffer")) {
@@ -209,11 +222,17 @@ int main() {
                        promptWidth, minifont->ascent - minifont->descent * 1.3,
                        1.0, 1.0, WHITE, CT.bg, -1, cursorVisible);
         }
-        
+
+
+
+
+
+
         endDrawing();
     }
 
     freeFont(font);
+    freeKillRing(&kr);
     freeBufferManager(&bm);
     closeWindow();
     return 0;
@@ -249,6 +268,7 @@ void backspace(Buffer *buffer) {
 void keyInputHandler(int key, int action, int mods) {
     Buffer *buffer = getActiveBuffer(&bm);
     Buffer *minibuffer = getBuffer(&bm, "minibuffer");
+    Buffer *prompt = getBuffer(&bm, "prompt");
 
     bool shiftPressed = mods & GLFW_MOD_SHIFT;
     bool ctrlPressed = mods & GLFW_MOD_CONTROL;
@@ -258,9 +278,12 @@ void keyInputHandler(int key, int action, int mods) {
         switch (key) {
 
         case KEY_BACKSPACE:
-            if (isearch.searching) {
+            if (buffer->region.active && !isearch.searching) {
+                kill_region(buffer, &kr);
+                
+            } else if (isearch.searching) {
                 if (altPressed || ctrlPressed) {
-                    backward_kill_word(minibuffer);
+                    backward_kill_word(minibuffer, &kr);
                 } else {
                     backspace(minibuffer);
                 }
@@ -273,7 +296,7 @@ void keyInputHandler(int key, int action, int mods) {
                 }
             } else {
                 if (altPressed || ctrlPressed) {
-                    backward_kill_word(buffer);
+                    backward_kill_word(buffer, &kr);
                 } else {
                     backspace(buffer);
                 }
@@ -283,20 +306,30 @@ void keyInputHandler(int key, int action, int mods) {
         case KEY_SPACE:
             if (ctrlPressed) {
                 if (!buffer->region.active) {
-                    activateRegion(buffer);                    
+                    activateRegion(buffer);
+                    buffer->region.marked = true;
                 } else {
                     deactivateRegion(buffer);
+                    buffer->region.marked = false;
                 }
             }
             break;
 
         case KEY_ENTER:
+            if (buffer->region.active) buffer->region.active = false;
             if (isearch.searching) {
                 isearch.lastSearch = strdup(minibuffer->content);
                 minibuffer->size = 0;
                 minibuffer->point = 0;
                 minibuffer->content[0] = '\0';
                 isearch.searching = false;
+                prompt->content = strdup("");
+            } else if (strcmp(prompt->content, "Find file: ") == 0) {
+                find_file(&bm);
+                minibuffer->size = 0;
+                minibuffer->point = 0;
+                minibuffer->content[0] = '\0';
+                prompt->content = strdup("");
             } else {
                 if (buffer->point > 0 && buffer->point < buffer->size &&
                     buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
@@ -320,6 +353,20 @@ void keyInputHandler(int key, int action, int mods) {
             }
             break;
 
+        case KEY_Y:
+            if (ctrlPressed) yank(buffer, &kr);
+            break;
+
+        case KEY_C:
+            if (ctrlPressed) find_file(&bm);
+            break;
+
+        case KEY_X:
+            if (ctrlPressed) {
+                message(&bm, "TEST!");
+            }
+            break;
+
         case KEY_S:
             if (ctrlPressed) {
                 if (!isearch.searching) {
@@ -327,6 +374,7 @@ void keyInputHandler(int key, int action, int mods) {
                     minibuffer->size = 0;
                     minibuffer->content[0] = '\0';
                     isearch.startIndex = buffer->point;
+                    prompt->content = strdup("I-search: ");
                 } else {
                     // Ensures that we start the search from the right point even if minibuffer hasn't changed
                     if (minibuffer->size == 0 && isearch.lastSearch) {
@@ -342,18 +390,30 @@ void keyInputHandler(int key, int action, int mods) {
             break;
 
         case KEY_W:
-            if (ctrlPressed) kill_region(buffer);
+            if (ctrlPressed) {
+                kill_region(buffer, &kr);
+            } else if (altPressed) {
+                kill_ring_save(buffer, &kr);                
+            }
             break;
 
         case KEY_G:
             if (ctrlPressed){
                 buffer->region.active = false;
+                buffer->region.marked = false;
                 if (isearch.searching) {
                     buffer->point = isearch.startIndex;
                     minibuffer->size = 0;
                     minibuffer->point = 0;
                     minibuffer->content[0] = '\0';
                     isearch.searching = false;
+                    prompt->content = strdup("");
+                } else {
+                    minibuffer->size = 0;
+                    minibuffer->point = 0;
+                    minibuffer->content[0] = '\0';
+                    prompt->content = strdup("");
+                    switchToBuffer(&bm, bm.lastBuffer->name);
                 }
             }
             break;
@@ -370,44 +430,90 @@ void keyInputHandler(int key, int action, int mods) {
         case KEY_6:
             if (altPressed && shiftPressed) delete_indentation(buffer);
             break;
+
+            
         case KEY_TAB:
-            indent(buffer);
+            if (isCurrentBuffer(&bm, "minibuffer") && strcmp(prompt->content, "Find file: ") == 0) {
+                if (!completion.isActive || strcmp(minibuffer->content, completion.items[completion.currentIndex]) != 0) {
+                    fetch_completions(minibuffer->content);
+                    completion.currentIndex = 0; // Start from the first completion.
+                } else {
+                    if (shiftPressed) {
+                        // Move to the previous completion, wrapping around if necessary.
+                        if (completion.currentIndex == 0) {
+                            completion.currentIndex = completion.count - 1;
+                        } else {
+                            completion.currentIndex--;
+                        }
+                    } else {
+                        // Cycle through the completions.
+                        completion.currentIndex = (completion.currentIndex + 1) % completion.count;
+                    }
+                }
+
+                // Set the minibuffer content to the current completion and update necessary fields.
+                if (completion.count > 0) {
+                    setBufferContent(minibuffer, completion.items[completion.currentIndex]);
+                }
+            } else {
+                indent(buffer);
+            }
             break;
         case KEY_DOWN:
-            next_line(buffer);
+            next_line(buffer, shiftPressed);
             break;
         case KEY_UP:
-            previous_line(buffer);
+            previous_line(buffer, shiftPressed);
             break;
         case KEY_LEFT:
-            left_char(buffer);
+            left_char(buffer, shiftPressed);
             break;
         case KEY_RIGHT:
-            right_char(buffer);
+            right_char(buffer, shiftPressed);
             break;
         case KEY_DELETE:
             delete_char(buffer);
             break;
         case KEY_N:
-            if (ctrlPressed) next_line(buffer);
+            if (ctrlPressed) {
+                next_line(buffer, shiftPressed);                
+            } else if (altPressed) {
+                forward_paragraph(buffer);
+            }
+
             break;
         case KEY_P:
-            if (ctrlPressed) previous_line(buffer);
+            if (ctrlPressed) {
+                previous_line(buffer, shiftPressed);                
+            } else if (altPressed) {
+                backward_paragraph(buffer);
+            }
+
             break;
         case KEY_F:
-            if (ctrlPressed) right_char(buffer);
+            if (ctrlPressed) {
+                right_char(buffer, shiftPressed);
+            } else if (altPressed) {
+                forward_word(buffer, 1);
+            }
+             
             break;
         case KEY_B:
-            if (ctrlPressed) left_char(buffer);
+            if (ctrlPressed) {
+                left_char(buffer, shiftPressed);                
+            } else if (altPressed) {
+                backward_word(buffer, 1);
+            }
+
             break;
         case KEY_E:
-            if (ctrlPressed) move_end_of_line(buffer);
+            if (ctrlPressed) move_end_of_line(buffer, shiftPressed);
             break;
         case KEY_A:
-            if (ctrlPressed) move_beginning_of_line(buffer);
+            if (ctrlPressed) move_beginning_of_line(buffer, shiftPressed);
             break;
         case KEY_HOME:
-            move_beginning_of_line(buffer);
+            move_beginning_of_line(buffer, shiftPressed);
             break;
         case KEY_D:
             if (ctrlPressed) delete_char(buffer);
@@ -415,14 +521,19 @@ void keyInputHandler(int key, int action, int mods) {
         case KEY_K:
             if (ctrlPressed) {
                 if (buffer->region.active) {
-                    kill_region(buffer);
+                    kill_region(buffer, &kr);
                 } else {
-                    kill_line(buffer);
+                    kill_line(buffer, &kr);
                 }
             }
             break;
         case KEY_O:
-            if (ctrlPressed) open_line(buffer);
+            if (buffer->region.active) buffer->region.active = false;
+            if (ctrlPressed && shiftPressed) {
+                duplicate_line(buffer);
+            } else if (ctrlPressed) {
+                open_line(buffer);
+            }
             break;
         case KEY_EQUAL:
             if (altPressed) nextTheme();
@@ -462,7 +573,7 @@ void textInputHandler(unsigned int codepoint) {
             if ((codepoint == ')' || codepoint == ']' || codepoint == '}' || 
                  codepoint == '\'' || codepoint == '\"') &&
                 buffer->point < buffer->size && buffer->content[buffer->point] == codepoint) {
-                right_char(buffer);
+                right_char(buffer, false);
             } else {
                 insertUnicodeCharacter(buffer, codepoint);
 
@@ -502,8 +613,7 @@ void textInputHandler(unsigned int codepoint) {
 
 void insertUnicodeCharacter(Buffer * buffer, unsigned int codepoint) {
     char utf8[5]; // Buffer to hold UTF-8 encoded character
-    int bytes = encodeUTF8(
-                           utf8, codepoint); // Function to convert codepoint to UTF-8
+    int bytes = encodeUTF8(utf8, codepoint); // Function to convert codepoint to UTF-8
     for (int i = 0; i < bytes; i++) {
         insertChar(buffer, utf8[i]);
     }
@@ -822,3 +932,155 @@ void drawRegion(Buffer *buffer, Font *font, Color regionColor) {
     }
 }
 
+
+// TODO Dired when calling find_file on a directory
+// TODO Create files when they don't exist (and directories to get to that file)
+
+void find_file(BufferManager *bm) {
+    Buffer *minibuffer = getBuffer(bm, "minibuffer");
+    Buffer *prompt = getBuffer(bm, "prompt");
+
+    if (minibuffer->size == 0) {
+        if (bm->lastBuffer && bm->lastBuffer->path) {
+            minibuffer->size = 0;
+            minibuffer->content[0] = '\0';
+            minibuffer->point = 0;
+            setBufferContent(minibuffer, bm->lastBuffer->path);
+        }
+        free(prompt->content);
+        prompt->content = strdup("Find file: ");
+        switchToBuffer(bm, "minibuffer");
+        return;
+    }
+
+    const char *homeDir = getenv("HOME");
+    char fullPath[PATH_MAX];
+    const char *filePath = minibuffer->content;
+
+    // Resolve full path
+    if (filePath[0] == '~') {
+        if (homeDir) {
+            snprintf(fullPath, sizeof(fullPath), "%s%s", homeDir, filePath + 1);
+        } else {
+            fprintf(stderr, "Environment variable HOME is not set.\n");
+            return;
+        }
+    } else {
+        strncpy(fullPath, filePath, sizeof(fullPath) - 1);
+        fullPath[sizeof(fullPath) - 1] = '\0'; // Ensure null termination
+    }
+
+    FILE *file = fopen(fullPath, "r");
+    if (file) {
+        // Creating buffer with '~' notation for user-friendly display
+        char displayPath[PATH_MAX];
+        if (strncmp(fullPath, homeDir, strlen(homeDir)) == 0) {
+            snprintf(displayPath, sizeof(displayPath), "~%s", fullPath + strlen(homeDir));
+        } else {
+            strncpy(displayPath, fullPath, sizeof(displayPath));
+            displayPath[sizeof(displayPath) - 1] = '\0';
+        }
+
+        newBuffer(bm, displayPath, displayPath);
+        Buffer *fileBuffer = getBuffer(bm, displayPath);
+
+        if (fileBuffer) {
+            fileBuffer->content = malloc(sizeof(char) * 1024);
+            fileBuffer->capacity = 1024;
+            fileBuffer->size = 0;
+
+            char buffer[1024]; // Temporary buffer for reading file content
+            size_t bytesRead;
+            while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+                if (fileBuffer->size + bytesRead >= fileBuffer->capacity) {
+                    fileBuffer->capacity = (fileBuffer->size + bytesRead) * 2;
+                    char *newContent = realloc(fileBuffer->content, fileBuffer->capacity);
+                    if (!newContent) {
+                        free(fileBuffer->content);
+                        fclose(file);
+                        fprintf(stderr, "Failed to allocate memory for file content.\n");
+                        return;
+                    }
+                    fileBuffer->content = newContent;
+                }
+                memcpy(fileBuffer->content + fileBuffer->size, buffer, bytesRead);
+                fileBuffer->size += bytesRead;
+            }
+            fileBuffer->content[fileBuffer->size] = '\0';
+            fclose(file);
+            switchToBuffer(bm, fileBuffer->name);
+        } else {
+            fprintf(stderr, "Failed to retrieve or create buffer for file: %s\n", displayPath);
+            fclose(file);
+        }
+    } else {
+        fprintf(stderr, "File does not exist: %s\n", fullPath);
+    }
+}
+
+
+
+
+void fetch_completions(const char* input) {
+    DIR* dir;
+    struct dirent* entry;
+    char fullPath[PATH_MAX];
+    char dirPath[PATH_MAX];
+    const char* homeDir = getenv("HOME");
+
+    // Resolve path, considering '~' and extracting directory path
+    if (input[0] == '~') {
+        snprintf(fullPath, PATH_MAX, "%s%s", homeDir, input + 1);
+    } else {
+        strncpy(fullPath, input, PATH_MAX);
+    }
+    fullPath[PATH_MAX - 1] = '\0';
+
+    char* lastSlash = strrchr(fullPath, '/');
+    if (lastSlash) {
+        memcpy(dirPath, fullPath, lastSlash - fullPath);
+        dirPath[lastSlash - fullPath] = '\0';
+    } else {
+        strcpy(dirPath, fullPath);  // Full path is the directory if no slash
+    }
+
+    dir = opendir(dirPath);
+    if (!dir) {
+        perror("Failed to open directory");
+        return;
+    }
+
+    // Free previous completions
+    for (int i = 0; i < completion.count; i++) {
+        free(completion.items[i]);
+    }
+    free(completion.items);
+    completion.items = NULL;
+    completion.count = 0;
+
+    // Collect new completions
+    while ((entry = readdir(dir)) != NULL) {
+        const char* lastPart = lastSlash ? lastSlash + 1 : input;
+        if (strncmp(entry->d_name, lastPart, strlen(lastPart)) == 0) {
+            char formattedPath[PATH_MAX];
+
+            // Format the path with a tilde for user-friendly display
+            if (entry->d_type == DT_DIR) {
+                snprintf(formattedPath, PATH_MAX, "%s/%s/", dirPath, entry->d_name);
+            } else {
+                snprintf(formattedPath, PATH_MAX, "%s/%s", dirPath, entry->d_name);
+            }
+
+            if (strncmp(formattedPath, homeDir, strlen(homeDir)) == 0) {
+                snprintf(formattedPath, PATH_MAX, "~%s", formattedPath + strlen(homeDir));
+            }
+
+            completion.items = realloc(completion.items, sizeof(char*) * (completion.count + 1));
+            completion.items[completion.count++] = strdup(formattedPath);
+        }
+    }
+
+    closedir(dir);
+    completion.isActive = true;
+    completion.currentIndex = -1; // Reset index for new session
+}

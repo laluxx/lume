@@ -8,6 +8,7 @@ typedef struct {
     size_t start;   // Start position of the region
     size_t end;     // End position of the region
     bool active;    // Whether the region is currently active
+    bool marked;    // Whether the region was activated by pressing C-SPC 
 } Region;
 
 typedef struct {
@@ -17,7 +18,8 @@ typedef struct {
     size_t point;    // Cursor position
     char *name;      // Buffer name
     bool readOnly;   // Read-only flag
-    Region region;
+    char *path;
+    Region region;   // NOTE Each buffer has its region
 } Buffer;
 
 typedef struct {
@@ -26,13 +28,15 @@ typedef struct {
     int capacity;        // Capacity of the buffer list
     int activeIndex;     // Index of the active buffer
     char *activeName;    // Name of the active buffer
+    Buffer *lastBuffer;
 } BufferManager;
 
-void initBuffer(Buffer *buffer, const char *name);
+void initBuffer(Buffer *buffer, const char *name, const char *path);
+void newBuffer(BufferManager *manager, const char *name, const char *path);
 void freeBuffer(Buffer *buffer);
 void initBufferManager(BufferManager *manager);
 void freeBufferManager(BufferManager *manager);
-void newBuffer(BufferManager *manager, const char *name);
+
 void switchToBuffer(BufferManager *manager, const char *name);
 Buffer *getActiveBuffer(BufferManager *manager);
 Buffer *getBuffer(BufferManager *manager, const char *name);
@@ -44,6 +48,8 @@ void activateRegion(Buffer *buffer);
 void updateRegion(Buffer *buffer, size_t new_point);
 void deactivateRegion(Buffer *buffer);
 
-
+void setBufferContent(Buffer *buffer, const char *newContent);
+void message(BufferManager *bm, const char *message);
+void cleanBuffer(BufferManager *bm, char *name);
 
 #endif

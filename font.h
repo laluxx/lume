@@ -3,6 +3,7 @@
 
 #include "ft2build.h"
 #include FT_FREETYPE_H
+#include FT_LCD_FILTER_H
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>

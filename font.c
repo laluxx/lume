@@ -13,6 +13,7 @@ void initFreeType() {
         fprintf(stderr, "Could not init FreeType Library\n");
         exit(1);
     }
+    FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_DEFAULT);
 }
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -20,6 +21,89 @@ void initFreeType() {
 
 bool shouldSaveAtlas = true;
 
+
+// NOTE LCD font rendering
+/* Font* loadFont(const char* fontPath, int fontSize) { */
+/*     FT_Face face; */
+/*     if (FT_New_Face(ft, fontPath, 0, &face)) { */
+/*         fprintf(stderr, "Failed to load font: %s\n", fontPath); */
+/*         return NULL; */
+/*     } */
+
+/*     printf("[LOADED FONT] %s %i\n", fontPath, fontSize); */
+/*     FT_Set_Pixel_Sizes(face, 0, fontSize); */
+/*     FT_Library_SetLcdFilter(ft, FT_LCD_FILTER_DEFAULT); */
+
+/*     Font* font = (Font*)malloc(sizeof(Font)); */
+/*     if (!font) { */
+/*         FT_Done_Face(face); */
+/*         fprintf(stderr, "Memory allocation failed for font structure\n"); */
+/*         return NULL; */
+/*     } */
+
+/*     font->ascent = face->size->metrics.ascender >> 6; */
+/*     font->descent = -(face->size->metrics.descender >> 6); */
+
+/*     unsigned char* atlas = (unsigned char*)calloc(1024 * 1024 * 3, sizeof(unsigned char)); */
+/*     if (!atlas) { */
+/*         free(font); */
+/*         FT_Done_Face(face); */
+/*         fprintf(stderr, "Memory allocation failed for texture atlas\n"); */
+/*         return NULL; */
+/*     } */
+
+/*     int ox = 0, oy = 0, rowh = 0; */
+/*     for (int i = 32; i < 128; i++) { */
+/*         if (FT_Load_Char(face, i, FT_LOAD_RENDER | FT_LOAD_TARGET_LCD)) { */
+/*             fprintf(stderr, "Loading character %c failed!\n", i); */
+/*             continue; */
+/*         } */
+
+/*         if (ox + (face->glyph->bitmap.width / 3) + 1 >= 1024) { */
+/*             oy += rowh; */
+/*             rowh = 0; */
+/*             ox = 0; */
+/*         } */
+
+/*         for (int y = 0; y < face->glyph->bitmap.rows; y++) { */
+/*             for (int x = 0; x < face->glyph->bitmap.width; x++) { */
+/*                 int atlas_index = (ox + (x / 3)) + ((oy + y) * 1024); */
+/*                 int buffer_index = (face->glyph->bitmap.rows - 1 - y) * face->glyph->bitmap.pitch + x; // Adjust for vertical flip */
+/*                 atlas[3 * atlas_index + (x % 3)] = face->glyph->bitmap.buffer[buffer_index]; */
+/*             } */
+/*         } */
+
+/*         font->characters[i].ax = face->glyph->advance.x >> 6; */
+/*         font->characters[i].ay = face->glyph->advance.y >> 6; */
+/*         font->characters[i].bw = face->glyph->bitmap.width / 3; */
+/*         font->characters[i].bh = face->glyph->bitmap.rows; */
+/*         font->characters[i].bl = face->glyph->bitmap_left; */
+/*         font->characters[i].bt = face->glyph->bitmap_top; */
+/*         font->characters[i].tx = (float)ox / 1024; */
+/*         font->characters[i].ty = (float)oy / 1024; */
+
+/*         ox += (face->glyph->bitmap.width / 3) + 1; */
+/*         rowh = fmax(rowh, face->glyph->bitmap.rows); */
+/*     } */
+
+/*     glGenTextures(1, &font->textureID); */
+/*     glBindTexture(GL_TEXTURE_2D, font->textureID); */
+/*     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1024, 1024, 0, GL_RGB, GL_UNSIGNED_BYTE, atlas); */
+/*     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); */
+/*     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); */
+/*     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); */
+/*     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); */
+
+/*     if (shouldSaveAtlas) { */
+/*         stbi_write_png("font_atlas.png", 1024, 1024, 3, atlas, 1024 * 3); */
+/*     } */
+
+/*     free(atlas); */
+/*     FT_Done_Face(face); */
+/*     return font; */
+/* } */
+
+// NOTE ORIGINAL GRAYSCALE
 Font* loadFont(const char* fontPath, int fontSize) {
     FT_Face face;
     if (FT_New_Face(ft, fontPath, 0, &face)) {
@@ -94,7 +178,7 @@ Font* loadFont(const char* fontPath, int fontSize) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
 
-    if (shouldSaveAtlas) 
+    if (shouldSaveAtlas)
         stbi_write_png("font_atlas.png", 1024, 1024, 1, atlas, 1024);
 
 

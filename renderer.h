@@ -76,6 +76,13 @@ void drawTexture(Vec2f position, Vec2f size, GLuint textureID);
 GLint getUniformLocation(const char* uniformName);
 void uniform4f(const char *name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 
+/* void beginScissorMode(int x, int y, int width, int height); */
+void beginScissorMode(Vec2f position, Vec2f size);
+void endScissorMode(void);
+
+
+
+
 // TODO Hardcoded in lib shaders
 /* const char* simple_vert = */
 /*     "#version 330 core\n" */
