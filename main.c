@@ -131,7 +131,7 @@ int main(void) {
 
         flush();
 
-
+        drawFPS(jetb, 400.0, 400.0, RED);
 
         glfwSwapBuffers(window);
         glfwPollEvents();

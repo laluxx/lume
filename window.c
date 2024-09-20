@@ -74,6 +74,7 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     initInput();
     initRenderer(width, height);
     initFreeType();
+    initFPS();
     return g_window;
 }
 

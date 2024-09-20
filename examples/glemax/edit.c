@@ -4,8 +4,6 @@
 #include <ctype.h>
 #include <string.h>
 
-
-
 void insertChar(Buffer * buffer, char c) {
     if (buffer->size + 1 >= buffer->capacity) {
         buffer->capacity *= 2;
@@ -22,7 +20,21 @@ void insertChar(Buffer * buffer, char c) {
     buffer->content[buffer->size] = '\0';
 }
 
-void right_char(Buffer * buffer, bool shift) {
+void beginning_of_buffer(Buffer *buffer) {
+    if (buffer != NULL && buffer->content != NULL) {
+        buffer->point = 0; // Move the cursor to the beginning of the buffer's content
+    }
+}
+
+void end_of_buffer(Buffer *buffer) {
+    if (buffer != NULL && buffer->content != NULL) {
+        buffer->point = buffer->size; // Move the cursor to the end of the buffer's content
+    }
+}
+
+
+
+void right_char(Buffer *buffer, bool shift) {
     if (shift) {
         if (!buffer->region.active) {
             activateRegion(buffer);

@@ -49,4 +49,10 @@ float getFontWidth(Font* font);
 float getCharacterWidth(Font* font, char character);
 void freeFont(Font* font);
 
+void initFPS();
+void updateFPS();
+void drawFPS(Font* font, float x, float y, Color color);
+
+
+
 #endif // FONT_H

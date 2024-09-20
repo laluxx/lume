@@ -51,6 +51,10 @@ void backward_kill_word(Buffer *buffer, KillRing *kr);
 void forward_paragraph(Buffer *buffer);
 void backward_paragraph(Buffer *buffer);
 
+void beginning_of_buffer(Buffer *buffer);
+void end_of_buffer(Buffer *buffer);
+
+
 
 
 

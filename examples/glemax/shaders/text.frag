@@ -10,6 +10,8 @@
 //     FragColor = vec4(textColor * ourColor.rgb, ourColor.a);  // Multiply by the vertex color for any additional tinting
 // }
 
+
+
 // NOTE Grayscale
 #version 330 core
 in vec2 TexCoord;
