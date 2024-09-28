@@ -57,11 +57,11 @@ void drawTexture(Vec2f position, Vec2f size, GLuint textureID) {
     Vec2f uv3 = {0.0f, 1.0f};
     Vec2f uv4 = {1.0f, 1.0f};
 
-    drawTriangleColors(p1, (Color){255, 255, 255, 1.0}, uv1,
+    drawTriangleEx(p1, (Color){255, 255, 255, 1.0}, uv1,
                        p3, (Color){255, 255, 255, 1.0}, uv3,
                        p2, (Color){255, 255, 255, 1.0}, uv2);
     
-    drawTriangleColors(p2, (Color){255, 0, 0, 1.0}, uv2,
+    drawTriangleEx(p2, (Color){255, 0, 0, 1.0}, uv2,
                        p3, (Color){255, 0, 0, 1.0}, uv3,
                        p4, (Color){255, 0, 0, 1.0}, uv4);
 
@@ -230,6 +230,7 @@ void initShaders() {
     newShader("./shaders/simple.vert", "./shaders/circle.frag",  "circle");
     newShader("./shaders/simple.vert", "./shaders/texture.frag", "texture");
     newShader("./shaders/simple.vert", "./shaders/text.frag",    "text");
+    newShader("./shaders/wave.vert",   "./shaders/text.frag",    "text");
 }
 
 void useShader(const char *shaderName) {
@@ -290,9 +291,9 @@ void drawVertex(Vec2f position, Color color, Vec2f uv) {
     vertex->v = uv.y;
 }
 
-void drawTriangleColors(Vec2f p1, Color c1, Vec2f uv1,
-                        Vec2f p2, Color c2, Vec2f uv2,
-                        Vec2f p3, Color c3, Vec2f uv3)
+void drawTriangleEx(Vec2f p1, Color c1, Vec2f uv1,
+                    Vec2f p2, Color c2, Vec2f uv2,
+                    Vec2f p3, Color c3, Vec2f uv3)
 {
     drawVertex(p1, c1, uv1);
     drawVertex(p2, c2, uv2);
@@ -324,8 +325,8 @@ void drawRectangle(Vec2f position, Vec2f size, Color color) {
     Vec2f uv3 = {0.0f, 1.0f};
     Vec2f uv4 = {1.0f, 1.0f};
 
-    drawTriangleColors(p1, color, uv1, p3, color, uv3, p2, color, uv2);
-    drawTriangleColors(p2, color, uv2, p3, color, uv3, p4, color, uv4);
+    drawTriangleEx(p1, color, uv1, p3, color, uv3, p2, color, uv2);
+    drawTriangleEx(p2, color, uv2, p3, color, uv3, p4, color, uv4);
 }
 
 void updateProjectionMatrix(int width, int height) {

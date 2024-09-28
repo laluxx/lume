@@ -6,11 +6,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <dirent.h>
+#include "completion.h"
+#include "isearch.h"
+#include "faces.h"
+#include "keychords.h"
+#include "history.h"
 
-// TODO meomoize the fonts rasterize each index only once
+// TODO implement a face system using drawChar(); and implement C syntax highligt using it
+// TODO mark for each Buffer
 
-// NOTE do this 4 next time
+// FIXME most functions that take the "Font *font" shoudl take only the wm now
+// TODO dabbrev-completion
+// TODO scrolling, and recenter_top_bottom
+// TODO rainbow-mode
+// TODO rainbow-delimiters-mode
+// TODO revert-buffer-mode
+// TODO wdired
 // TODO iedit
 // FIXME it segfault when i complete a non existing match, after i complete one more time
 // TODO add a modeline struct to the window struct
@@ -20,51 +31,31 @@
 // Do this when we implement the minibuffer as a window
 // NOTE I-searrch for "if (isCurrentBuffer(&bm, "minibuffer")"
 
-// TODO message(), and FIX it while the minibuffer is active [message] and fix the key cleanup
 // TODO IMPORTANT be able to message() and turn false ctrl_x_pressed in the key
 // TODO isearch-backward and color unmatched characters
-// TODO scrolling, and recenter_top_bottom
 // TODO syntax highlighting
 // TODO unhardcode the keybinds
 // TODO check if the lastmatchindex changes and stop search (like for moving)
-// TODO Multiline in the minibuffer
-// TODO Window manager
+// TODO Multiline in the minibufferHeight
 // TODO save-buffer
 // TODO M-x
 // TODO modeline
 // TODO undo system
-// TODO rainbow-mode
+
 // TODO ) inside () shoudl jumpt to the closing one not move right once
 // TODO add sx and sy parameters to drawCursor()
 // FIXME use setBufferContent() to set the prompt aswell
 
-// TODO IMPORTANT Don't fetch for the same buffer multiple times
-// per frame, do it only once and pass it arround. (we did it by using the wm ?)
-// ENGINE
-// TODO Subpixel font rendering
+// TODO IMPORTANT Don't fetch for the same buffer multiple times per frame,
+// do it only once and pass it arround. (we did it by using the wm ?)
 
-typedef struct {
-    Buffer *searchBuffer;
-    size_t lastMatchIndex;
-    size_t startIndex;
-    bool searching;
-    char *lastSearch;
-    bool wrap;
-} ISearch;
-
-typedef struct {
-    char** items;        // Array of completion strings
-    int count;           // Number of completions
-    int currentIndex;    // Current index in the completion list
-    bool isActive;       // Is completion active
-} Completion;
-
-
-Completion completion = {0};
+CompletionEngine ce = {0};
 ISearch isearch = {0};
 BufferManager bm = {0};
 KillRing kr = {0};
 WindowManager wm = {0};
+NamedHistories nh = {0};
+
 
 bool electric_pair_mode = true; // TODO Wrap selection for () [] {} '' ""
 bool blink_cursor_mode = true;
@@ -73,25 +64,29 @@ float blink_cursor_interval = 0.5; // Lenght of cursor blink interval in seconds
 int blink_cursor_blinks = 10; // How many times to blink before stopping.
 int indentation = 4;
 bool show_paren_mode = true;
-float show_paren_delay = 0.125; // Time in seconds to delay before showing a matching paren.
+float show_paren_delay = 0.125; // TODO Time in seconds to delay before showing a matching paren.
 int kill_ring_max = 120; // Maximum length of kill ring before oldest elements are thrown away.
+bool draw_region_on_empty_lines = true;
+bool electric_indent_mode = true;
+bool rainbow_mode = true;
+
 
 void drawMiniCursor(Buffer *buffer, Font *font, float x, float y, Color color);
 void drawCursor(Buffer *buffer, Font *font, Window *win, Color color);
-void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex);
 void drawHighlight(WindowManager *wm, Font *font, size_t startPos, size_t length, Color highlightColor);
 void highlightMatchingBrackets(WindowManager *wm, Font *font, Color highlightColor);
 void highlightAllOccurrences(WindowManager *wm, const char *searchText, Font *font, Color highlightColor);
 void drawRegion(WindowManager *wm, Font *font, Color regionColor);
 void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float modelineHeight, Color color);
-void find_file(BufferManager *bm);
-char* autocomplete_path(const char* input);
-void fetch_completions(const char* input);
+void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible);
+void highlightHexColors(WindowManager *wm, Font *font, Buffer *buffer, bool rm);
+int getGlobalArg(Buffer *argBuffer);
 
 void keyInputHandler(int key, int action, int mods);
 void textInputHandler(unsigned int codepoint);
-void insertUnicodeCharacter(Buffer *buffer, unsigned int codepoint);
+void insertUnicodeCharacter(Buffer * buffer, unsigned int codepoint, int arg);
 int encodeUTF8(char *out, unsigned int codepoint);
+
 
 
 static double lastBlinkTime = 0.0;  // Last time the cursor state changed
@@ -183,29 +178,8 @@ void drawMiniCursor(Buffer *buffer, Font *font, float x, float y, Color color) {
 }
 
 
-bool isBottomWindow(WindowManager *wm, Window *window) {
-    // Assuming vertical stacking of windows:
-    for (Window *current = wm->head; current != NULL; current = current->next) {
-        // Check if there is another window starting below the current one
-        if (current != window && current->y > window->y) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool ctrl_x_pressed = false;
-
 int sw = 1920;
 int sh = 1080;
-
-Font *font;
-Font *minifont;
-
-int fontincrement = 2.0; // NOTE not used yes use it to have precise control over the text size
-int fontsize = 15;
-int minifontsize = 15;
-char *fontname = "fira.ttf";
 
 int main() {
     initThemes();
@@ -218,9 +192,11 @@ int main() {
 
     initKillRing(&kr, kill_ring_max);
     initBufferManager(&bm);
-    newBuffer(&bm, &wm, "minibuffer", "~/", fontname);
-    newBuffer(&bm, &wm, "prompt", "~/", fontname);
-    newBuffer(&bm, &wm, "*scratch*", "~/", fontname);
+    newBuffer(&bm, &wm, "minibuffer", "~/", fontname, sw, sh);
+    newBuffer(&bm, &wm, "prompt",     "~/", fontname, sw, sh);
+    newBuffer(&bm, &wm, "message",    "~/", fontname, sw, sh);
+    newBuffer(&bm, &wm, "arg",        "~/", fontname, sw, sh);
+    newBuffer(&bm, &wm, "*scratch*",  "~/", fontname, sw, sh);
     bm.lastBuffer = getBuffer(&bm, "*scratch*");
 
     sw = getScreenWidth();
@@ -236,8 +212,11 @@ int main() {
         sh = getScreenHeight();
         
         /* updateWindows(&wm, font, sw, sh); */
+        reloadShaders();
         Buffer *prompt = getBuffer(&bm, "prompt");
         Buffer *minibuffer = getBuffer(&bm, "minibuffer");
+        Buffer *message = getBuffer(&bm, "message");
+        
 
         Window *win = wm.head;
         Window *activeWindow = wm.activeWindow;
@@ -248,7 +227,9 @@ int main() {
         beginDrawing();
         clearBackground(CT.bg);
 
-        /* drawFPS(font, 400.0, 400.0, RED); */
+
+
+        drawFPS(font, 400.0, 400.0, RED);
 
         float promptWidth = 0;
 
@@ -259,7 +240,8 @@ int main() {
         // PROMPT TEXT
         drawTextEx(minifont, prompt->content,
                    0, minifont->ascent - minifont->descent * 1.3,
-                   1.0, 1.0, CT.minibuffer_prompt, CT.bg, -1, cursorVisible);
+                   1.0, 1.0, CT.minibuffer_prompt, CT.bg, -1, cursorVisible,
+                   "text");
 
         // MODELINE
         float minibufferHeight = minifont->ascent + minifont->descent;
@@ -288,51 +270,61 @@ int main() {
                 scissorHeight += minibufferHeight;
             }
 
-            drawModeline(&wm, font, minibufferHeight, modelineHeight, CT.modeline);
+            drawModeline(&wm, minifont, minibufferHeight, modelineHeight, CT.modeline);
+
+
             beginScissorMode((Vec2f){win->x, scissorStartY}, (Vec2f){win->width, scissorHeight});
 
 
             if (win == wm.activeWindow) {
+                highlightHexColors(&wm, buffer->font, buffer, rainbow_mode);
                 useShader("simple");
-
-
                 drawRegion(&wm, buffer->font, CT.region);
-                highlightMatchingBrackets(&wm, font, CT.show_paren_match);
+                highlightMatchingBrackets(&wm, buffer->font, CT.show_paren_match);
                 if (isearch.searching) highlightAllOccurrences(&wm, minibuffer->content, font, CT.isearch_highlight);
                 flush();
 
-
-                drawTextEx(buffer->font, buffer->content,
-                           win->x, win->y,
-                           1.0, 1.0, CT.text, CT.bg,
-                           buffer->point, cursorVisible);
-
+                /* drawTextEx(buffer->font, buffer->content, */
+                /*            win->x, win->y, */
+                /*            1.0, 1.0, CT.text, CT.bg, */
+                /*            buffer->point, cursorVisible, */
+                /*            "text"); */
+                drawBuffer(win, buffer, cursorVisible);
             } else {
                 drawTextEx(buffer->font, buffer->content,
                            win->x, win->y,
                            1.0, 1.0, CT.text, CT.bg,
-                           -1, cursorVisible);
+                           -1, cursorVisible,
+                           "text");
             }
             endScissorMode();
         }
         
 
+        float minibufferWidth = promptWidth;
 
-        // MINIBUFFER TEXT
-        if (isCurrentBuffer(&bm, "minibuffer") || isearch.searching) {
-            drawTextEx(minifont, minibuffer->content,
-                       promptWidth, minifont->ascent - minifont->descent * 1.3,
-                       1.0, 1.0, CT.text, CT.bg, minibuffer->point, cursorVisible);
-        /* } else { */
-        /*     drawTextEx(minifont, minibuffer->content, */
-        /*                promptWidth, minifont->ascent - minifont->descent * 1.3, */
-        /*                1.0, 1.0, CT.text, CT.bg, -1, cursorVisible); */
+        for (size_t i = 0; i < strlen(minibuffer->content); i++) {
+            minibufferWidth += getCharacterWidth(minifont, minibuffer->content[i]);
         }
 
+        // MINIBUFFER TEXT
+        drawTextEx(minifont, minibuffer->content,
+                   promptWidth, minifont->ascent - minifont->descent * 1.3,
+                   1.0, 1.0, CT.text, CT.bg, minibuffer->point, cursorVisible,
+                   "text");
 
+        // MESSAGE TEXT
+        drawTextEx(minifont, message->content,
+                   minibufferWidth + getCharacterWidth(minifont, 32), minifont->ascent - minifont->descent * 1.3,
+                   1.0, 1.0, CT.message, CT.bg, message->point, cursorVisible,
+                   "text");
+
+
+        
 
         endDrawing();
     }
+
 
     freeFont(font);
     freeFont(minifont);
@@ -345,154 +337,45 @@ int main() {
 }
 
 
-/* int main() { */
-/*     initThemes(); */
-
-/*     initWindow(sw, sh, "*scratch* - Glemax"); */
-/*     registerTextInputCallback(textInputHandler); */
-/*     registerKeyInputCallback(keyInputHandler); */
-
-/*     Font *font = loadFont("jetb.ttf", 15); // 15 */
-/*     Font *minifont = loadFont("jetb.ttf", 15); // 15 */
-
-/*     initKillRing(&kr, kill_ring_max); */
-/*     initBufferManager(&bm); */
-/*     newBuffer(&bm, "minibuffer", "~/"); */
-/*     newBuffer(&bm, "prompt", "~/"); */
-/*     newBuffer(&bm, "*scratch*", "~/"); */
-/*     bm.lastBuffer = getBuffer(&bm, "*scratch*"); */
-
-/*     initWindowManager(&wm, &bm, sw, sh); */
-
-
-/*     while (!windowShouldClose()) { */
-/*         sw = getScreenWidth(); */
-/*         sh = getScreenHeight(); */
-/*         /\* reloadShaders(); *\/ */
-
-
-/*         Buffer *minibuffer = getBuffer(&bm, "minibuffer"); */
-/*         Buffer *prompt = getBuffer(&bm, "prompt"); */
-/*         Buffer *currentBuffer = getActiveBuffer(&bm); */
-        
-/*         beginDrawing(); */
-/*         clearBackground(CT.bg); */
-
-/*         drawFPS(font, 400.0, 400.0, RED); */
-        
-/*         float promptWidth = 0; */
-
-/*         for (size_t i = 0; i < strlen(prompt->content); i++) { */
-/*             promptWidth += getCharacterWidth(minifont, prompt->content[i]); */
-/*         } */
-
-/*         // PROMPT TEXT */
-/*         drawTextEx(minifont, prompt->content, */
-/*                    0, minifont->ascent - minifont->descent * 1.3, */
-/*                    1.0, 1.0, CT.minibuffer_prompt, CT.bg, -1, cursorVisible); */
-
-
-/*         useShader("simple"); */
-/*         float minibufferHeight = minifont->ascent + minifont->descent; */
-/*         float modelineHeight = 25.0; */
-
-/*         drawRectangle((Vec2f){0, minibufferHeight}, (Vec2f){sw, modelineHeight}, CT.modeline); //21 */
-
-/*         highlightMatchingBrackets(currentBuffer, font, CT.show_paren_match); */
-/*         if (isearch.searching) highlightAllOccurrences(currentBuffer, minibuffer->content, font, CT.isearch_highlight); */
-
-/*         updateRegion(currentBuffer, currentBuffer->point); */
-/*         drawRegion(currentBuffer, font, CT.region); */
-
-
-/*         if (isCurrentBuffer(&bm, "minibuffer")) { */
-/*             drawCursor(currentBuffer, minifont, promptWidth, 0 + minifont->descent, */
-/*                        CT.cursor); */
-/*         } else { */
-/*             drawCursor(currentBuffer, font, 0, sh - font->ascent, CT.cursor); */
-/*         } */
-
-/*         flush(); */
-
-/*         // BUFFER TEXT */
-/*         beginScissorMode((Vec2f){0, minibufferHeight + modelineHeight}, (Vec2f) {sw, sh - minibufferHeight}); */
-/*         if (!isCurrentBuffer(&bm, "minibuffer")) { */
-/*             drawTextEx(font, currentBuffer->content, */
-/*                        0, sh - font->ascent + font->descent, 1.0, 1.0, */
-/*                        CT.text, CT.bg, */
-/*                        currentBuffer->point, cursorVisible); */
-/*         } else { */
-/*             drawTextEx(font, bm.lastBuffer->content, */
-/*                        0, sh - font->ascent + font->descent, 1.0, 1.0, */
-/*                        CT.text, CT.bg, */
-/*                        -1, cursorVisible); */
-            
-/*         } */
-/*         endScissorMode(); */
-
-/*         // MINIBUFFER TEXT */
-/*         if (isCurrentBuffer(&bm, "minibuffer")) { */
-/*             drawTextEx(minifont, minibuffer->content, */
-/*                        promptWidth, minifont->ascent - minifont->descent * 1.3, */
-/*                        1.0, 1.0, CT.text, CT.bg, currentBuffer->point, cursorVisible); */
-/*         } else { */
-/*             drawTextEx(minifont, minibuffer->content, */
-/*                        promptWidth, minifont->ascent - minifont->descent * 1.3, */
-/*                        1.0, 1.0, CT.text, CT.bg, -1, cursorVisible); */
-/*         } */
-
-/*         endDrawing(); */
-/*     } */
-
-/*     freeFont(font); */
-/*     freeKillRing(&kr); */
-/*     freeBufferManager(&bm); */
-/*     freeWindowManager(&wm); */
-/*     closeWindow(); */
-/*     return 0; */
-/* } */
-
-void backspace(Buffer *buffer) {
-    if (buffer->point > 0 && electric_pair_mode) {
-        // Check if backspacing over an opening character that has a closing pair right after
-        unsigned int currentChar = buffer->content[buffer->point - 1];
-        unsigned int nextChar = buffer->content[buffer->point];
-        if ((currentChar == '(' && nextChar == ')') ||
-            (currentChar == '[' && nextChar == ']') ||
-            (currentChar == '{' && nextChar == '}') ||
-            (currentChar == '\'' && nextChar == '\'') ||
-            (currentChar == '\"' && nextChar == '\"')) {
-            // Remove both characters
-            memmove(buffer->content + buffer->point - 1, buffer->content + buffer->point + 1, buffer->size - buffer->point - 1);
-            buffer->size -= 2;
-            buffer->point--;
-            buffer->content[buffer->size] = '\0';
-            return;
-        }
-    }
-    // Default backspace behavior when not deleting a pair
-    if (buffer->point > 0) {
-        buffer->point--;
-        memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point);
-        buffer->size--;
-        buffer->content[buffer->size] = '\0';
-    }
-}
-
 void keyInputHandler(int key, int action, int mods) {
     Window * win = wm.activeWindow;
     Buffer *buffer = isCurrentBuffer(&bm, "minibuffer") ? getBuffer(&bm, "minibuffer") : wm.activeWindow->buffer;
     
     Buffer *minibuffer = getBuffer(&bm, "minibuffer");
     Buffer *prompt = getBuffer(&bm, "prompt");
+    Buffer *messageBuffer = getBuffer(&bm, "message");
+    Buffer *argBuffer = getBuffer(&bm, "arg");
+    int arg = getGlobalArg(argBuffer);
+
 
     bool shiftPressed = mods & GLFW_MOD_SHIFT;
     bool ctrlPressed = mods & GLFW_MOD_CONTROL;
     bool altPressed = mods & GLFW_MOD_ALT;
+    
 
     if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-        switch (key) {
 
+        // NOTE Handle global arg
+        if (ctrlPressed && (key >= KEY_0 && key <= KEY_9)) {
+            char digit = '0' + (key - KEY_0);  // Convert key code to corresponding character
+            insertChar(argBuffer, digit, arg);
+            message(&bm, argBuffer->content);
+            return;  // Skip further processing
+        }
+
+        if (!isCurrentBuffer(&bm, "minibuffer") && (ctrlPressed || altPressed)) {
+            cleanBuffer(&bm, "minibuffer");
+
+        }
+        cleanBuffer(&bm, "message");
+        
+        if (ctrl_x_pressed && key != KEY_X && key != KEY_F && key != KEY_O) {
+            ctrl_x_pressed = false;
+        }
+
+        cleanBuffer(&bm, "arg");
+        
+        switch (key) {
         case KEY_BACKSPACE:
             if (buffer->region.active && !isearch.searching) {
                 kill_region(buffer, &kr);
@@ -501,10 +384,10 @@ void keyInputHandler(int key, int action, int mods) {
                 if (altPressed || ctrlPressed) {
                     backward_kill_word(minibuffer, &kr);
                 } else {
-                    backspace(minibuffer);
+                    backspace(minibuffer, electric_pair_mode);
                 }
                 if (minibuffer->size > 0) {
-                    isearch_forward(buffer, minibuffer, false);
+                    isearch_forward(buffer, minibuffer, false, &isearch);
                 } else {
                     // If the minibuffer is empty, move the cursor back to where the search started
                     buffer->point = isearch.startIndex;
@@ -514,7 +397,7 @@ void keyInputHandler(int key, int action, int mods) {
                 if (altPressed || ctrlPressed) {
                     backward_kill_word(buffer, &kr);
                 } else {
-                    backspace(buffer);
+                    backspace(buffer, electric_pair_mode);
                 }
             }
             break;
@@ -530,61 +413,21 @@ void keyInputHandler(int key, int action, int mods) {
                 }
             }
             break;
-
         case KEY_PERIOD:
             if (altPressed && shiftPressed) end_of_buffer(buffer);
             break;
-
         case KEY_COMMA:
             if (altPressed && shiftPressed) beginning_of_buffer(buffer);
             break;
-
         case KEY_ENTER:
-            if (buffer->region.active) buffer->region.active = false;
-            if (isearch.searching) {
-                isearch.lastSearch = strdup(minibuffer->content);
-                minibuffer->size = 0;
-                minibuffer->point = 0;
-                minibuffer->content[0] = '\0';
-                isearch.searching = false;
-                prompt->content = strdup("");
-            } else if (strcmp(prompt->content, "Find file: ") == 0) {
-                find_file(&bm);
-                minibuffer->size = 0;
-                minibuffer->point = 0;
-                minibuffer->content[0] = '\0';
-                prompt->content = strdup("");
-                ctrl_x_pressed = false; // NOTE this is hardcoded because we cant reset ctrl_x_pressed
-                // inside the key callback (for now) TODO
-            } else {
-                if (buffer->point > 0 && buffer->point < buffer->size &&
-                    buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
-                    // Insert a newline and indent for the opening brace
-                    insertChar(buffer, '\n');
-                    indent(buffer);
-        
-                    // Record the position after the first indent, which is where the cursor should end up
-                    size_t newCursorPosition = buffer->point;
-
-                    // Insert another newline for the closing brace and indent again
-                    insertChar(buffer, '\n');
-                    indent(buffer);
-
-                    // Move cursor to the line between the braces
-                    buffer->point = newCursorPosition;
-                } else {
-                    insertChar(buffer, '\n');
-                }
-                indent(buffer);
-            }
+            enter(buffer, &bm, &wm, minibuffer, prompt, &isearch, indentation, electric_indent_mode, sw, sh, &nh, arg);
             break;
-
         case KEY_Y:
-            if (ctrlPressed) yank(buffer, &kr);
+            if (ctrlPressed) yank(buffer, &kr, arg);
             break;
-
-        case KEY_C:
-            /* if (ctrlPressed) find_file(&bm); */
+        case KEY_Z:
+            message(&bm, "HELLOW");
+            moveTo(buffer, 10, 300);
             break;
 
         case KEY_X:
@@ -593,6 +436,29 @@ void keyInputHandler(int key, int action, int mods) {
                 printActiveWindowDetails(&wm);
             }
             break;
+
+        case KEY_R:
+            if (ctrlPressed) {
+                if (!isearch.searching) {
+                    isearch.searching = true;
+                    minibuffer->size = 0;
+                    minibuffer->content[0] = '\0';
+                    isearch.lastMatchIndex = buffer->point;  // Start backward search from the current point
+                    prompt->content = strdup("I-search backward: ");
+                } else {
+                    // If the minibuffer is empty and there was a previous search, reload it
+                    if (minibuffer->size == 0 && isearch.lastSearch) {
+                        if (minibuffer->content) free(minibuffer->content);
+                        minibuffer->content = strdup(isearch.lastSearch);
+                        minibuffer->size = strlen(minibuffer->content);
+                        minibuffer->point = minibuffer->size;
+                    }
+                    isearch.lastMatchIndex = buffer->point;  // Set start point for the next backward search
+                    isearch_backward(buffer, minibuffer, true, &isearch);  // Continue search backward
+                }
+            }
+            break;
+
 
         case KEY_S:
             if (ctrlPressed) {
@@ -611,11 +477,10 @@ void keyInputHandler(int key, int action, int mods) {
                         minibuffer->point = minibuffer->size;
                     }
                     isearch.startIndex = buffer->point;  // Update to ensure search starts from next position
-                    isearch_forward(buffer, minibuffer, true);  // Continue search from new start index
+                    isearch_forward(buffer, minibuffer, true, &isearch);  // Continue search from new start index
                 }
             }
             break;
-
         case KEY_W:
             if (ctrlPressed) {
                 kill_region(buffer, &kr);
@@ -623,30 +488,31 @@ void keyInputHandler(int key, int action, int mods) {
                 kill_ring_save(buffer, &kr);                
             }
             break;
-            
         case KEY_G:
             if (ctrlPressed){
                 ctrl_x_pressed = false;
                 
-                buffer->region.active = false;
-                buffer->region.marked = false;
+                resetHistoryIndex(&nh, prompt->content); // NOTE prompt->content is the history name
                 if (isearch.searching) {
                     buffer->point = isearch.startIndex;
-                    minibuffer->size = 0;
-                    minibuffer->point = 0;
-                    minibuffer->content[0] = '\0';
+                    cleanBuffer(&bm, "minibuffer");
+                    cleanBuffer(&bm, "prompt");
                     isearch.searching = false;
-                    prompt->content = strdup("");
                 } else {
-                    minibuffer->size = 0;
-                    minibuffer->point = 0;
-                    minibuffer->content[0] = '\0';
-                    prompt->content = strdup("");
+                    buffer->region.active = false;
+                    buffer->region.marked = false;
+                    cleanBuffer(&bm, "minibuffer");
+                    cleanBuffer(&bm, "prompt");
                     switchToBuffer(&bm, bm.lastBuffer->name);
+                    cleanBuffer(&bm, "message");
                 }
+
+            } else if (altPressed) {
+                goto_line(&bm, &wm, sw, sh);
             }
             break;
-                
+
+
         case KEY_I:
             if (ctrlPressed) {
                 if (shiftPressed) {
@@ -657,80 +523,110 @@ void keyInputHandler(int key, int action, int mods) {
             }
             break;
         case KEY_6:
-            if (altPressed && shiftPressed) delete_indentation(buffer);
+            if (altPressed && shiftPressed) delete_indentation(buffer, &bm, arg);
             break;
-
-            
         case KEY_TAB:
             if (isCurrentBuffer(&bm, "minibuffer") && strcmp(prompt->content, "Find file: ") == 0) {
-                if (!completion.isActive || strcmp(minibuffer->content, completion.items[completion.currentIndex]) != 0) {
-                    fetch_completions(minibuffer->content);
-                    completion.currentIndex = 0; // Start from the first completion.
+                if (!ce.isActive || strcmp(minibuffer->content, ce.items[ce.currentIndex]) != 0) {
+                    fetch_completions(minibuffer->content, &ce);
+                    ce.currentIndex = 0; // Start from the first ce.
                 } else {
                     if (shiftPressed) {
-                        // Move to the previous completion, wrapping around if necessary.
-                        if (completion.currentIndex == 0) {
-                            completion.currentIndex = completion.count - 1;
+                        // Move to the previous ce, wrapping around if necessary.
+                        if (ce.currentIndex == 0) {
+                            ce.currentIndex = ce.count - 1;
                         } else {
-                            completion.currentIndex--;
+                            ce.currentIndex--;
                         }
                     } else {
                         // Cycle through the completions.
-                        completion.currentIndex = (completion.currentIndex + 1) % completion.count;
+                        ce.currentIndex = (ce.currentIndex + 1) % ce.count;
                     }
                 }
 
-                // Set the minibuffer content to the current completion and update necessary fields.
-                if (completion.count > 0) {
-                    setBufferContent(minibuffer, completion.items[completion.currentIndex]);
+                // Set the minibuffer content to the current ce and update necessary fields.
+                if (ce.count > 0) {
+                    setBufferContent(minibuffer, ce.items[ce.currentIndex]);
                 }
             } else {
-                indent(buffer);
+                if (buffer->region.active) {
+                    indent_region(buffer, &bm, indentation, arg);
+                } else {
+                    indent(buffer, indentation, &bm, arg);
+                }
             }
             break;
         case KEY_DOWN:
-            next_line(buffer, shiftPressed);
+            if (ctrlPressed) {
+                forward_paragraph(buffer, shiftPressed);
+            } else {
+                next_line(buffer, shiftPressed, &bm);
+            }
             break;
         case KEY_UP:
-            previous_line(buffer, shiftPressed);
+            if (ctrlPressed) {
+                backward_paragraph(buffer, shiftPressed);
+            } else {
+                previous_line(buffer, shiftPressed, &bm);
+            }
             break;
         case KEY_LEFT:
-            left_char(buffer, shiftPressed);
+            if (ctrlPressed) {
+                backward_word(buffer, 1, shiftPressed);
+            } else {
+                left_char(buffer, shiftPressed, &bm, arg);
+            }
             break;
         case KEY_RIGHT:
-            right_char(buffer, shiftPressed);
+            if (ctrlPressed) {
+                forward_word(buffer, 1, shiftPressed);
+            } else {
+                right_char(buffer, shiftPressed, &bm, arg);
+            }
             break;
         case KEY_DELETE:
-            delete_char(buffer);
+            delete_char(buffer, &bm);
             break;
         case KEY_N:
-            if (ctrlPressed) {
-                next_line(buffer, shiftPressed);                
+           if (ctrlPressed && altPressed) {
+                forward_list(buffer, arg);
+            } else if (ctrlPressed) {
+                next_line(buffer, shiftPressed, &bm);
             } else if (altPressed) {
-                forward_paragraph(buffer);
+                if (isCurrentBuffer(&bm, "minibuffer")) {
+                    next_history_element(&nh, prompt->content, minibuffer, &bm);
+                } else {
+                    forward_paragraph(buffer, shiftPressed);
+                }
             }
             break;
         case KEY_P:
-            if (ctrlPressed) {
-                previous_line(buffer, shiftPressed);                
+            if (ctrlPressed && altPressed) {
+                backward_list(buffer, arg);
+            } else if (ctrlPressed) {
+                previous_line(buffer, shiftPressed, &bm);
             } else if (altPressed) {
-                backward_paragraph(buffer);
+                if (isCurrentBuffer(&bm, "minibuffer")) {
+                    previous_history_element(&nh, prompt->content, minibuffer, &bm);
+                } else {
+                    backward_paragraph(buffer, shiftPressed);
+                }
             }
             break;
         case KEY_F:
             if (ctrlPressed && ctrl_x_pressed) {
-                find_file(&bm);
+                find_file(&bm, &wm, sw, sh);
             } else if (ctrlPressed) {
-                right_char(buffer, shiftPressed);
+                right_char(buffer, shiftPressed, &bm, arg);
             } else if (altPressed) {
-                forward_word(buffer, 1);
+                forward_word(buffer, 1, shiftPressed);
             }
             break;
         case KEY_B:
             if (ctrlPressed) {
-                left_char(buffer, shiftPressed);                
+                left_char(buffer, shiftPressed, &bm, arg);
             } else if (altPressed) {
-                backward_word(buffer, 1);
+                backward_word(buffer, 1, shiftPressed);
             }
             break;
         case KEY_E:
@@ -743,40 +639,54 @@ void keyInputHandler(int key, int action, int mods) {
             move_beginning_of_line(buffer, shiftPressed);
             break;
         case KEY_D:
-            if (ctrlPressed) delete_char(buffer);
+            if (ctrlPressed) {
+                if (buffer->region.active) {
+                    kill_region(buffer, &kr);
+                } else {
+                    delete_char(buffer, &bm);
+                }
+            }
             break;
         case KEY_Q:
             if (altPressed) {
                 delete_window(&wm);
                 /* updateWindows(&wm, font, sw, sh); */
             }
+        
             break;
         case KEY_O:
             if (altPressed) {
                 other_window(&wm, 1);
-                printf("other window\n");
             } else if (ctrlPressed && shiftPressed) {
                 if (buffer->region.active) buffer->region.active = false;
                 duplicate_line(buffer);
             } else if (ctrlPressed) {
-                if (buffer->region.active) buffer->region.active = false;
-                open_line(buffer);
+                if (ctrl_x_pressed) {
+                    delete_blank_lines(buffer, arg);
+                    ctrl_x_pressed = false;
+                } else {
+                    if (buffer->region.active) buffer->region.active = false;
+                    open_line(buffer);
+                }
             }
             break;
+
         case KEY_EQUAL:
             if (altPressed) {
-                nextTheme();   
+                nextTheme();
             } else if (ctrlPressed) {
-                increaseFontSize(buffer, fontname);
+                increaseFontSize(buffer, fontname, &wm, sh);
             }
             break;
         case KEY_MINUS:
             if (altPressed) {
-                previousTheme();   
+                previousTheme();
             } else if (ctrlPressed) {
-                decreaseFontSize(buffer, fontname);
+                decreaseFontSize(buffer, fontname, &wm, sh);
             }
             break;
+
+
         case KEY_L:
             if (altPressed) {
                 split_window_right(&wm, font, sw, sh);
@@ -789,6 +699,8 @@ void keyInputHandler(int key, int action, int mods) {
                 other_window(&wm, 1);
             } else if (altPressed) {
                 other_window(&wm, 1);
+            } else if (ctrlPressed) {
+                enter(buffer, &bm, &wm, minibuffer, prompt, &isearch, indentation, electric_indent_mode, sw, sh, &nh, arg);
             }
             break;
         case KEY_H:
@@ -828,14 +740,19 @@ void keyInputHandler(int key, int action, int mods) {
         lastBlinkTime = getTime();
         cursorVisible = true;
     }
+
 }
 
 void textInputHandler(unsigned int codepoint) {
+    // TODO it shoudl take all those variables as parameters
     Window *win = wm.activeWindow;
     Buffer *buffer = win->buffer;
-
-    /* Buffer *buffer = getActiveBuffer(&bm); */
+    Buffer *prompt = getBuffer(&bm, "prompt");
     Buffer *minibuffer = getBuffer(&bm, "minibuffer");
+
+    Buffer *argBuffer = getBuffer(&bm, "arg");
+    int arg = getGlobalArg(argBuffer);
+
 
     if (ctrl_x_pressed && codepoint == '2') {
         split_window_below(&wm, font, getScreenWidth(), getScreenHeight());
@@ -849,53 +766,59 @@ void textInputHandler(unsigned int codepoint) {
         delete_window(&wm);
         ctrl_x_pressed = false;
         return;
-    } 
+    }
 
-
-    
     ctrl_x_pressed = false;
     
     if (buffer != NULL) {
-        buffer->region.active = false;
+        if (!isearch.searching) {
+            buffer->region.active = false;            
+        }
+
         if (isearch.searching) {
             if (isprint(codepoint)) {
-                insertChar(minibuffer, (char)codepoint);
-                isearch_forward(buffer, minibuffer, false);
+                insertChar(minibuffer, (char)codepoint, arg);
+                if (strcmp(prompt->content, "I-search backward: ") == 0) {
+                    isearch_backward(buffer, minibuffer, false, &isearch);  // Continue search backward
+                } else {
+                    isearch_forward(buffer, minibuffer, false, &isearch);
+                }
+
             }
         } else {
             // Normal behavior when not in search mode
             if ((codepoint == ')' || codepoint == ']' || codepoint == '}' || 
                  codepoint == '\'' || codepoint == '\"') &&
                 buffer->point < buffer->size && buffer->content[buffer->point] == codepoint) {
-                right_char(buffer, false);
+                right_char(buffer, false, &bm, arg);
             } else {
 
                 if (isCurrentBuffer(&bm, "minibuffer")) {
-                    insertUnicodeCharacter(minibuffer, codepoint);                    
+                    insertChar(minibuffer, codepoint, arg);
                 } else {
-                    insertUnicodeCharacter(buffer, codepoint);                    
+                    insertChar(buffer, codepoint, arg);
                 }
 
 
                 if (electric_pair_mode) {
                     switch (codepoint) {
                     case '(':
-                        insertUnicodeCharacter(buffer, ')');
+                        insertChar(buffer, ')', arg);
                         break;
                     case '[':
-                        insertUnicodeCharacter(buffer, ']');
+                        insertChar(buffer, ']', arg);
                         break;
                     case '{':
-                        insertUnicodeCharacter(buffer, '}');
+                        insertChar(buffer, '}', arg);
                         break;
                     case '\'':
                         if (!(buffer->point > 1 && buffer->content[buffer->point - 2] == '\'')) {
-                            insertUnicodeCharacter(buffer, '\'');
+                            insertChar(buffer, '\'', arg);
                         }
                         break;
                     case '\"':
                         if (!(buffer->point > 1 && buffer->content[buffer->point - 2] == '\"')) {
-                            insertUnicodeCharacter(buffer, '\"');
+                            insertChar(buffer, '\"', arg);
                         }
                         break;
                     }
@@ -906,16 +829,19 @@ void textInputHandler(unsigned int codepoint) {
                         buffer->point--;
                     }
                 }
+                if (electric_indent_mode && (codepoint == '}' || codepoint == ';')) {
+                    indent(buffer, indentation, &bm, arg);
+                }
             }
         }
     }
 }
 
-void insertUnicodeCharacter(Buffer * buffer, unsigned int codepoint) {
+void insertUnicodeCharacter(Buffer * buffer, unsigned int codepoint, int arg) {
     char utf8[5]; // Buffer to hold UTF-8 encoded character
     int bytes = encodeUTF8(utf8, codepoint); // Function to convert codepoint to UTF-8
     for (int i = 0; i < bytes; i++) {
-        insertChar(buffer, utf8[i]);
+        insertChar(buffer, utf8[i], arg);
     }
 }
 
@@ -941,104 +867,7 @@ int encodeUTF8(char *out, unsigned int codepoint) {
     }
 }
 
-void indent(Buffer *buffer) {
-    size_t cursor_row_start = 0, cursor_row_end = buffer->size;
-    int braceLevel = 0;
-    bool startsWithClosingBrace = false;
 
-    // Find the start of the current line
-    for (int i = buffer->point - 1; i >= 0; i--) {
-        if (buffer->content[i] == '\n') {
-            cursor_row_start = i + 1;
-            break;
-        }
-    }
-
-    // Find the end of the current line
-    for (size_t i = buffer->point; i < buffer->size; i++) {
-        if (buffer->content[i] == '\n') {
-            cursor_row_end = i;
-            break;
-        }
-    }
-
-    // Calculate the current brace level up to the start of the current line
-    for (size_t i = 0; i < cursor_row_start; ++i) {
-        char c = buffer->content[i];
-        if (c == '{') {
-            braceLevel++;
-        } else if (c == '}') {
-            braceLevel = (braceLevel > 0) ? braceLevel - 1 : 0;
-        }
-    }
-
-    // Check if the current line starts with a '}' before any other non-whitespace character
-    size_t firstNonWhitespace = cursor_row_start;
-    while (firstNonWhitespace < cursor_row_end && isspace(buffer->content[firstNonWhitespace])) {
-        firstNonWhitespace++;
-    }
-    if (firstNonWhitespace < cursor_row_end && buffer->content[firstNonWhitespace] == '}') {
-        startsWithClosingBrace = true;
-        braceLevel = (braceLevel > 0) ? braceLevel - 1 : 0;  // Decrement brace level for the line that starts with }
-    }
-
-    // Determine indentation level
-    int requiredIndentation = braceLevel * indentation;
-    int currentIndentation = 0;
-
-    // Count existing spaces at the beginning of the line
-    size_t i = cursor_row_start;
-    while (i < cursor_row_end && isspace(buffer->content[i])) {
-        if (buffer->content[i] == ' ') currentIndentation++;
-        i++;
-    }
-
-    // Adjust indentation to the required level
-    size_t old_point = buffer->point;  // Save old cursor position
-    buffer->point = cursor_row_start; // Move cursor to the start of the line
-
-    while (currentIndentation < requiredIndentation) {
-        insertChar(buffer, ' '); // Insert additional spaces
-        currentIndentation++;
-    }
-    while (currentIndentation > requiredIndentation && currentIndentation > 0) {
-        delete_char(buffer); // Delete excess spaces
-        currentIndentation--;
-    }
-
-    // Correct cursor position based on the previous position of non-whitespace text
-    if (old_point >= firstNonWhitespace) {
-        buffer->point = old_point - (firstNonWhitespace - cursor_row_start - requiredIndentation);
-    } else {
-        buffer->point = cursor_row_start + requiredIndentation;
-    }
-}
-
-void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex) {
-    const char *start = buffer->content + isearch.startIndex;
-    const char *found = strstr(start, minibuffer->content);
-
-    if (found) {
-        size_t matchIndex = found - buffer->content;
-        buffer->point = matchIndex + strlen(minibuffer->content);
-        isearch.lastMatchIndex = matchIndex + 1;
-        if (updateStartIndex) {
-            isearch.startIndex = buffer->point;
-        }
-        isearch.wrap = false;
-    } else {
-        if (!isearch.wrap) {
-            printf("Reached end of buffer. Press Ctrl+S again to wrap search.\n");
-            isearch.wrap = true;
-        } else {
-            if (updateStartIndex) {
-                isearch.startIndex = 0;
-                isearch.wrap = false;
-                isearch_forward(buffer, minibuffer, false);
-            }
-        }
-    }
-}
 
 
 // TODO use show_paren_delay
@@ -1104,7 +933,7 @@ void highlightAllOccurrences(WindowManager *wm, const char *searchText, Font *fo
 
     while ((current = strstr(current, searchText)) != NULL) {
         pos = current - buffer->content;
-        drawHighlight(wm, font, pos, searchLength, highlightColor);  // Updated to use WindowManager
+        drawHighlight(wm, wm->activeWindow->buffer->font, pos, searchLength, highlightColor);  // Updated to use WindowManager
         current += searchLength; // Move past the current match
 
         // Stop searching if the next search start is beyond buffer content
@@ -1153,6 +982,11 @@ void drawHighlight(WindowManager *wm, Font *font, size_t startPos, size_t length
     drawRectangle(position, size, highlightColor);
 }
 
+
+
+
+
+// NOTE DrawRect version
 void drawRegion(WindowManager *wm, Font *font, Color regionColor) {
     if (!wm || !wm->activeWindow || !wm->activeWindow->buffer) return;
     Buffer *buffer = wm->activeWindow->buffer;
@@ -1161,7 +995,6 @@ void drawRegion(WindowManager *wm, Font *font, Color regionColor) {
 
     size_t start = buffer->region.start;
     size_t end = buffer->region.end;
-    // Ensure the start is less than end for consistency
     if (start > end) {
         size_t temp = start;
         start = end;
@@ -1169,179 +1002,85 @@ void drawRegion(WindowManager *wm, Font *font, Color regionColor) {
     }
 
     size_t currentLineStart = 0;
-    float x = 0;
-    int lineCount = 0;
+    float initialY = wm->activeWindow->y + font->ascent - font->descent * 2;
+    float y = initialY;
 
     // Iterate over each character in the buffer to find line starts and ends
     for (size_t i = 0; i <= buffer->size; i++) {
         if (buffer->content[i] == '\n' || i == buffer->size) {  // End of line or buffer
             if (i >= start && currentLineStart <= end) {  // Check if the line contains the region
-                // Using the ternary operator directly in place of max and min
                 size_t lineStart = (currentLineStart > start) ? currentLineStart : start;
                 size_t lineEnd = (i < end) ? i : end;
                 size_t lineLength = lineEnd - lineStart;
 
                 if (lineLength > 0) {
-                    drawHighlight(wm, font, lineStart, lineLength, regionColor);  // Use drawHighlight for each line segment
-                }
-            }
-            currentLineStart = i + 1;  // Move to the start of the next line
-            lineCount++;
-        }
-    }
-}
+                    float highlightWidth = 0;
+                    float lineX = wm->activeWindow->x; // Reset lineX for this line's calculation
 
-
-// TODO Dired when calling find_file on a directory
-// TODO Create files when they don't exist (and directories to get to that file)
-void find_file(BufferManager *bm) {
-    Buffer *minibuffer = getBuffer(bm, "minibuffer");
-    Buffer *prompt = getBuffer(bm, "prompt");
-
-    if (minibuffer->size == 0) {
-        if (bm->lastBuffer && bm->lastBuffer->path) {
-            minibuffer->size = 0;
-            minibuffer->content[0] = '\0';
-            minibuffer->point = 0;
-            setBufferContent(minibuffer, bm->lastBuffer->path);
-        }
-        free(prompt->content);
-        prompt->content = strdup("Find file: ");
-        switchToBuffer(bm, "minibuffer");
-        return;
-    }
-
-    const char *homeDir = getenv("HOME");
-    char fullPath[PATH_MAX];
-    const char *filePath = minibuffer->content;
-
-    // Resolve full path
-    if (filePath[0] == '~') {
-        if (homeDir) {
-            snprintf(fullPath, sizeof(fullPath), "%s%s", homeDir, filePath + 1);
-        } else {
-            fprintf(stderr, "Environment variable HOME is not set.\n");
-            return;
-        }
-    } else {
-        strncpy(fullPath, filePath, sizeof(fullPath) - 1);
-        fullPath[sizeof(fullPath) - 1] = '\0'; // Ensure null termination
-    }
-
-    FILE *file = fopen(fullPath, "r");
-    if (file) {
-        // Creating buffer with '~' notation for user-friendly display
-        char displayPath[PATH_MAX];
-        if (strncmp(fullPath, homeDir, strlen(homeDir)) == 0) {
-            snprintf(displayPath, sizeof(displayPath), "~%s", fullPath + strlen(homeDir));
-        } else {
-            strncpy(displayPath, fullPath, sizeof(displayPath));
-            displayPath[sizeof(displayPath) - 1] = '\0';
-        }
-
-        newBuffer(bm, &wm, displayPath, displayPath, fontname);
-        Buffer *fileBuffer = getBuffer(bm, displayPath);
-
-        if (fileBuffer) {
-            fileBuffer->content = malloc(sizeof(char) * 1024);
-            fileBuffer->capacity = 1024;
-            fileBuffer->size = 0;
-
-            char buffer[1024]; // Temporary buffer for reading file content
-            size_t bytesRead;
-            while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-                if (fileBuffer->size + bytesRead >= fileBuffer->capacity) {
-                    fileBuffer->capacity = (fileBuffer->size + bytesRead) * 2;
-                    char *newContent = realloc(fileBuffer->content, fileBuffer->capacity);
-                    if (!newContent) {
-                        free(fileBuffer->content);
-                        fclose(file);
-                        fprintf(stderr, "Failed to allocate memory for file content.\n");
-                        return;
+                    // Calculate the x offset up to the start of the line
+                    for (size_t j = currentLineStart; j < lineStart; j++) {
+                        lineX += getCharacterWidth(font, buffer->content[j]);
                     }
-                    fileBuffer->content = newContent;
+
+                    // Calculate the highlight width for the selected area
+                    for (size_t j = lineStart; j < lineEnd; j++) {
+                        highlightWidth += getCharacterWidth(font, buffer->content[j]);
+                    }
+
+                    // If the newline is part of the selection and cursor is not on this line, extend highlight to end of window
+                    if (buffer->content[i] == '\n' && lineEnd == i && (end != i || i == buffer->size)) {
+                        highlightWidth += wm->activeWindow->width - (lineX + highlightWidth);
+                    }
+
+                    Vec2f position = {lineX, y - font->ascent};  // Position adjusted for font ascent
+                    Vec2f size = {highlightWidth, font->ascent + font->descent};  // Height adjusted for font size
+                    drawRectangle(position, size, regionColor);  // Draw the rectangle
                 }
-                memcpy(fileBuffer->content + fileBuffer->size, buffer, bytesRead);
-                fileBuffer->size += bytesRead;
             }
-            fileBuffer->content[fileBuffer->size] = '\0';
-            fclose(file);
-            switchToBuffer(bm, fileBuffer->name);
-        } else {
-            fprintf(stderr, "Failed to retrieve or create buffer for file: %s\n", displayPath);
-            fclose(file);
+            currentLineStart = i + 1;
+            y -= (font->ascent + font->descent);  // Move y to the next line
         }
-    } else {
-        fprintf(stderr, "File does not exist: %s\n", fullPath);
     }
 }
 
+/* void drawRegion(WindowManager *wm, Font *font, Color regionColor) { */
+/*     if (!wm || !wm->activeWindow || !wm->activeWindow->buffer) return; */
+/*     Buffer *buffer = wm->activeWindow->buffer; */
 
+/*     if (!buffer->region.active) return; */
 
+/*     size_t start = buffer->region.start; */
+/*     size_t end = buffer->region.end; */
+/*     // Ensure the start is less than end for consistency */
+/*     if (start > end) { */
+/*         size_t temp = start; */
+/*         start = end; */
+/*         end = temp; */
+/*     } */
 
-void fetch_completions(const char* input) {
-    DIR* dir;
-    struct dirent* entry;
-    char fullPath[PATH_MAX];
-    char dirPath[PATH_MAX];
-    const char* homeDir = getenv("HOME");
+/*     size_t currentLineStart = 0; */
+/*     float x = 0; */
+/*     int lineCount = 0; */
 
-    // Resolve path, considering '~' and extracting directory path
-    if (input[0] == '~') {
-        snprintf(fullPath, PATH_MAX, "%s%s", homeDir, input + 1);
-    } else {
-        strncpy(fullPath, input, PATH_MAX);
-    }
-    fullPath[PATH_MAX - 1] = '\0';
+/*     // Iterate over each character in the buffer to find line starts and ends */
+/*     for (size_t i = 0; i <= buffer->size; i++) { */
+/*         if (buffer->content[i] == '\n' || i == buffer->size) {  // End of line or buffer */
+/*             if (i >= start && currentLineStart <= end) {  // Check if the line contains the region */
+/*                 // Using the ternary operator directly in place of max and min */
+/*                 size_t lineStart = (currentLineStart > start) ? currentLineStart : start; */
+/*                 size_t lineEnd = (i < end) ? i : end; */
+/*                 size_t lineLength = lineEnd - lineStart; */
 
-    char* lastSlash = strrchr(fullPath, '/');
-    if (lastSlash) {
-        memcpy(dirPath, fullPath, lastSlash - fullPath);
-        dirPath[lastSlash - fullPath] = '\0';
-    } else {
-        strcpy(dirPath, fullPath);  // Full path is the directory if no slash
-    }
+/*                 if (lineLength > 0) { */
+/*                     drawHighlight(wm, font, lineStart, lineLength, regionColor);  // Use drawHighlight for each line segment */
+/*                 } */
+/*             } */
+/*             currentLineStart = i + 1;  // Move to the start of the next line */
+/*             lineCount++; */
+/*         } */
+/*     } */
+/* } */
 
-    dir = opendir(dirPath);
-    if (!dir) {
-        perror("Failed to open directory");
-        return;
-    }
-
-    // Free previous completions
-    for (int i = 0; i < completion.count; i++) {
-        free(completion.items[i]);
-    }
-    free(completion.items);
-    completion.items = NULL;
-    completion.count = 0;
-
-    // Collect new completions
-    while ((entry = readdir(dir)) != NULL) {
-        const char* lastPart = lastSlash ? lastSlash + 1 : input;
-        if (strncmp(entry->d_name, lastPart, strlen(lastPart)) == 0) {
-            char formattedPath[PATH_MAX];
-
-            // Format the path with a tilde for user-friendly display
-            if (entry->d_type == DT_DIR) {
-                snprintf(formattedPath, PATH_MAX, "%s/%s/", dirPath, entry->d_name);
-            } else {
-                snprintf(formattedPath, PATH_MAX, "%s/%s", dirPath, entry->d_name);
-            }
-
-            if (strncmp(formattedPath, homeDir, strlen(homeDir)) == 0) {
-                snprintf(formattedPath, PATH_MAX, "~%s", formattedPath + strlen(homeDir));
-            }
-
-            completion.items = realloc(completion.items, sizeof(char*) * (completion.count + 1));
-            completion.items[completion.count++] = strdup(formattedPath);
-        }
-    }
-
-    closedir(dir);
-    completion.isActive = true;
-    completion.currentIndex = -1; // Reset index for new session
-}
 
 // TODO use isBottomWindow() for consistency
 // TODO draw the modeline text
@@ -1356,20 +1095,15 @@ void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float m
             }
         }
 
-        float modelineBaseY = win->y - win->height + font->ascent - font->descent;
+        float modelineBaseY = win->y - win->height + wm->activeWindow->buffer->font->ascent - wm->activeWindow->buffer->font->descent;
         if (isBottom) {
             // Adjust for minibuffer height if this window is at the bottom
             modelineBaseY += minibufferHeight;
-            modelineBaseY -= font->ascent - font->descent;
+            modelineBaseY -= wm->activeWindow->buffer->font->ascent - wm->activeWindow->buffer->font->descent;
         }
 
-        // Use shader for drawing
         useShader("simple");
-
-        // Adjust width if vertical split
         float width = win->splitOrientation == VERTICAL ? win->width - 1 : win->width;
-
-        // Draw modeline at calculated position
         drawRectangle((Vec2f){win->x, modelineBaseY},
                       (Vec2f){width, modelineHeight}, CT.modeline);
 
@@ -1382,6 +1116,110 @@ void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float m
 }
 
 
+// TODO add a name field to the FONT struct 
+
+void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible) {
+    Font *font = buffer->font;
+    const char *text = buffer->content;
+    float x = win->x;
+    float y = win->y;
+    float sx = 1.0;
+    float sy = 1.0;
+    int highlightPos = buffer->point;
+    float lineHeight = (font->ascent + font->descent) * sy;
+    Color currentColor = CT.text;
+    char *currentShader = "text";
+
+    useShader(currentShader);
+
+    for (int i = 0; text[i] != '\0'; i++) {
+        if (text[i] == '\n') {
+            x = win->x;
+            y -= lineHeight;
+            continue;
+        }
+
+        if (cursorVisible && i == highlightPos) {
+            if (currentShader != "text") {
+                flush();
+                useShader("text");
+                currentShader = "text";
+            }
+            currentColor = CT.bg;
+        } else if (buffer->region.active && i >= buffer->region.start && i <= buffer->region.end - 1) {
+            if (currentShader != "wave") {
+                flush();
+                useShader("wave");
+                currentShader = "wave";
+            }
+            /* currentColor = RED; */
+        } else {
+            if (currentShader != "text") {
+                flush();
+                useShader("text");
+                currentShader = "text";
+            }
+            currentColor = CT.text;
+        }
+
+        drawChar(font, text[i], x, y, sx, sy, currentColor);
+        x += getCharacterWidth(font, text[i]) * sx;
+    }
+
+    flush();
+}
 
 
 
+
+
+
+#include <regex.h>
+
+void highlightHexColors(WindowManager *wm, Font *font, Buffer *buffer, bool rm) {
+    if (!rm || !wm || !wm->activeWindow || !buffer) return;
+    useShader("simple");
+    const char *pattern = "#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\\b";
+    regex_t regex;
+    regmatch_t matches[2]; // We expect one full match and one subgroup
+
+    if (regcomp(&regex, pattern, REG_EXTENDED)) {
+        fprintf(stderr, "Failed to compile regex.\n");
+        return;
+    }
+
+    char *text = buffer->content;
+    size_t offset = 0;
+
+    while (regexec(&regex, text + offset, 2, matches, 0) == 0) {
+        size_t match_start = offset + matches[0].rm_so;
+        size_t match_end = offset + matches[0].rm_eo;
+
+        char matchedString[8]; // Enough to hold the full pattern plus null terminator
+        snprintf(matchedString, sizeof(matchedString), "%.*s", (int)(match_end - match_start), text + match_start);
+
+        Color highlightColor = hexToColor(matchedString);
+        drawHighlight(wm, font, match_start, match_end - match_start, highlightColor);
+
+        offset = match_end; // Move past this match
+    }
+    flush();
+    regfree(&regex);
+}
+
+
+
+int getGlobalArg(Buffer *argBuffer) {
+    if (argBuffer->size == 0 || argBuffer->content[0] == '\0') {
+        return 1;
+    } else {
+        char *endptr;
+        int result = (int)strtol(argBuffer->content, &endptr, 10);
+        if (*endptr != '\0') {
+            // Handle case where non-numeric characters are present
+            printf("Non-numeric input in argument buffer. Ignoring non-numeric part.\n");
+            return result;
+        }
+        return result;
+    }
+}

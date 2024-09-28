@@ -1,0 +1,237 @@
+
+main.c,1049
+CompletionEngine ce 55,1903
+ISearch isearch 56,1930
+BufferManager bm 57,1953
+KillRing kr 58,1977
+WindowManager wm 59,1996
+bool electric_pair_mode 61,2021
+bool blink_cursor_mode 62,2095
+float blink_cursor_delay 63,2126
+float blink_cursor_interval 64,2220
+int blink_cursor_blinks 65,2302
+int indentation 66,2376
+bool show_paren_mode 67,2397
+float show_paren_delay 68,2426
+int kill_ring_max 69,2524
+bool rainbow_mode 70,2620
+bool draw_region_on_empty_lines 71,2660
+static double lastBlinkTime 88,3614
+static bool cursorVisible 89,3688
+static int blinkCount 90,3765
+void drawCursor(92,3826
+void drawMiniCursor(138,5614
+int sw 177,7015
+int sh 178,7030
+int main(180,7046
+void keyInputHandler(319,11732
+void textInputHandler(631,22951
+void insertUnicodeCharacter(710,25929
+int encodeUTF8(718,26231
+void highlightMatchingBrackets(745,26978
+void highlightAllOccurrences(795,28805
+void drawHighlight(815,29661
+void drawRegion(860,31310
+void drawModeline(957,35593
+char* extractSubstring(989,37022
+void drawBuffer(1001,37284
+
+theme.c,181
+int currentThemeIndex 5,59
+Theme themes[themes6,86
+Color hexToColor(8,104
+void initThemes(14,307
+void nextTheme(121,4022
+void previousTheme(129,4222
+void loadTheme(138,4434
+
+theme.h,368
+#define THEME_H2,16
+    char* name;7,71
+    Color bg;8,87
+    Color cursor;9,101
+    Color text;10,119
+    Color minibuffer;11,135
+    Color modeline;12,157
+    Color modeline_highlight;13,177
+    Color show_paren_match;14,207
+    Color isearch_highlight;15,235
+    Color minibuffer_prompt;16,264
+    Color region;17,293
+} Theme;18,311
+#define CT 23,375
+
+buffer.c,510
+void initBuffer(7,99
+void newBuffer(26,826
+void freeBuffer(65,2418
+void initBufferManager(75,2630
+void freeBufferManager(83,2865
+void switchToBuffer(97,3248
+Buffer *getActiveBuffer(getActiveBuffer109,3628
+Buffer *getBuffer(getBuffer116,3796
+bool isCurrentBuffer(125,4078
+void nextBuffer(133,4332
+void previousBuffer(142,4678
+void activateRegion(151,5049
+void updateRegion(158,5235
+void deactivateRegion(164,5371
+void setBufferContent(168,5449
+void message(188,6250
+void cleanBuffer(197,6502
+
+buffer.h,1247
+#define BUFFER_H2,17
+    int index;9,112
+    int fontSizes[fontSizes10,170
+} Scale;11,228
+    size_t start;14,255
+    size_t end;15,307
+    bool active;16,357
+    bool marked;17,419
+} Region;18,494
+    char *content;content21,522
+    size_t size;22,559
+    size_t capacity;23,607
+    size_t point;24,650
+    char *name;name25,690
+    bool readOnly;26,726
+    char *path;path27,765
+    Region region;28,808
+    Scale scale;29,864
+    Font *font;font30,925
+} Buffer;31,980
+    Buffer **buffers;buffers34,1008
+    int count;35,1061
+    int capacity;36,1107
+    int activeIndex;37,1163
+    char *activeName;activeName38,1218
+    Buffer *lastBuffer;lastBuffer39,1272
+} BufferManager;40,1296
+    VERTICAL,43,1329
+    HORIZONTAL44,1343
+} SplitOrientation;45,1358
+typedef struct Window 47,1379
+    float x;48,1403
+    float y;49,1442
+    float width;50,1481
+    float height;51,1529
+    Buffer *buffer;buffer52,1578
+    struct Window *prev;prev54,1718
+    struct Window *next;next55,1774
+    bool isActive;56,1826
+    SplitOrientation splitOrientation;57,1881
+} Window;58,1920
+    Window *head;head61,1948
+    Window *activeWindow;activeWindow62,2000
+    int count;63,2052
+} WindowManager;64,2098
+
+edit.c,944
+void insertChar(12,274
+void beginning_of_buffer(28,861
+void end_of_buffer(34,1053
+void right_char(42,1246
+void left_char(56,1554
+void previous_line(74,2003
+void next_line(137,3886
+void move_beginning_of_line(182,5207
+void move_end_of_line(200,5737
+void delete_char(218,6232
+void kill_line(232,6709
+void open_line(271,8214
+void delete_indentation(291,8897
+void addIndentation(330,10041
+void removeIndentation(360,11135
+void initKillRing(391,12027
+void freeKillRing(401,12274
+void kill(409,12416
+void kill_region(421,12714
+void yank(465,14049
+void kill_ring_save(478,14388
+void duplicate_line(512,15280
+bool isWordChar(575,17499
+bool isPunctuationChar(579,17578
+bool forward_word(584,17739
+bool backward_word(620,19046
+void backward_kill_word(637,19596
+void forward_paragraph(680,21045
+void backward_paragraph(702,21749
+void indent(725,22393
+void enter(798,25041
+void find_file(843,26922
+void backspace(925,30112
+
+edit.h,163
+#define EDIT_H2,15
+#define KILL_RING_SIZE 7,73
+    char** entries;10,117
+    int size;11,160
+    int capacity;12,231
+    int index;13,283
+} KillRing;14,335
+
+wm.c,320
+void initWindowManager(5,57
+void split_window_right(22,617
+void split_window_below(46,1336
+void delete_window(72,2263
+void other_window(121,3648
+void freeWindowManager(152,4714
+void updateWindowDimensions(166,4985
+void updateWindows(194,6141
+void printActiveWindowDetails(241,7492
+bool isBottomWindow(265,8338
+
+wm.h,18
+#define WM_H2,13
+
+completion.c,30
+void fetch_completions(8,153
+
+completion.h,151
+#define COMPLETION_H2,21
+    char** items;7,82
+    int count;8,138
+    int currentIndex;9,188
+    bool isActive;10,253
+} CompletionEngine;11,302
+
+isearch.c,27
+void isearch_forward(3,22
+
+isearch.h,237
+#define ISEARCH_H2,18
+    Buffer *searchBuffer;searchBuffer8,96
+    size_t lastMatchIndex;9,122
+    size_t startIndex;10,149
+    bool searching;11,172
+    char *lastSearch;lastSearch12,192
+    bool wrap;13,214
+} ISearch;14,229
+
+keychords.h,25
+#define KEYCHORDS_H2,20
+
+keychords.c,26
+bool ctrl_x_pressed 3,24
+
+faces.c,313
+Font *font;font7,179
+Font *minifont;minifont8,191
+int fontincrement 9,207
+int fontsize 10,303
+int minifontsize 11,322
+char *fontname fontname12,345
+Font *globalFontCache[globalFontCache13,374
+void initScale(15,429
+Font* updateFont(24,779
+void increaseFontSize(41,1295
+void decreaseFontSize(63,2312
+
+faces.h,153
+#define FACES_H2,16
+#define MAX_FONT_SCALE 16,212
+#define MIN_FONT_SCALE 17,238
+#define MAX_FONT_SCALE_INDEX 18,264
+#define SCALE_ZERO_INDEX 19,296

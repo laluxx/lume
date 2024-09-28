@@ -59,7 +59,7 @@ void drawVertex(Vec2f position, Color color, Vec2f uv);
 void drawTriangle(Color color,
                   Vec2f p1, Vec2f p2, Vec2f p3);
 
-void drawTriangleColors(Vec2f p1, Color c1, Vec2f uv1,
+void drawTriangleEx(Vec2f p1, Color c1, Vec2f uv1,
                         Vec2f p2, Color c2, Vec2f uv2,
                         Vec2f p3, Color c3, Vec2f uv3);
 

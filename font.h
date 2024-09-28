@@ -36,17 +36,20 @@ void initFreeType();
 Font* loadFont(const char* fontPath, int fontSize);
 
 void drawText(Font* font, const char* text, float x, float y, Color textColor);
+
 void drawTextEx(Font* font, const char* text,
-                float x, float y, float sx, float sy,
-                Color textColor, Color highlightColor, int highlightPos, bool cursorVisible);
+                float x, float y,
+                float sx, float sy,
+                Color textColor, Color highlightColor,
+                int highlightPos, bool cursorVisible,
+                char *shader);
 
-
-
-
+void drawChar(Font* font, char character, float x, float y, float sx, float sy, Color color);
 
 float getFontHeight(Font* font);
 float getFontWidth(Font* font);
 float getCharacterWidth(Font* font, char character);
+float getTextWidth(Font* font, const char* text);
 void freeFont(Font* font);
 
 void initFPS();

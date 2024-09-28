@@ -1,54 +1,87 @@
 #include "edit.h"
+#include "keychords.h"
+#include "faces.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 
-void insertChar(Buffer * buffer, char c) {
-    if (buffer->size + 1 >= buffer->capacity) {
+// TODO kill_line() should delete the entire line if is composed of only whitespaces
+
+void insertChar(Buffer *buffer, char c, int arg) {
+    if (arg <= 0) {
+        arg = 1;
+    }
+
+    while (buffer->size + arg >= buffer->capacity) {
         buffer->capacity *= 2;
-        buffer->content = realloc(buffer->content, buffer->capacity * sizeof(char));
-        if (!buffer->content) {
+        char *newContent = realloc(buffer->content, buffer->capacity * sizeof(char));
+        if (!newContent) {
             fprintf(stderr, "Failed to reallocate memory for buffer.\n");
             return;
         }
+        buffer->content = newContent;
     }
-    memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point);
-    buffer->content[buffer->point] = c;
-    buffer->point++;
-    buffer->size++;
+
+    for (int i = 0; i < arg; i++) {
+        memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point);
+        buffer->content[buffer->point] = c;
+        buffer->point++;
+        buffer->size++;
+    }
     buffer->content[buffer->size] = '\0';
 }
 
+
+/* void insertChar(Buffer *buffer, char c) { */
+/*     if (buffer->size + 1 >= buffer->capacity) { */
+/*         buffer->capacity *= 2; */
+/*         buffer->content = realloc(buffer->content, buffer->capacity * sizeof(char)); */
+/*         if (!buffer->content) { */
+/*             fprintf(stderr, "Failed to reallocate memory for buffer.\n"); */
+/*             return; */
+/*         } */
+/*     } */
+/*     memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point); */
+/*     buffer->content[buffer->point] = c; */
+/*     buffer->point++; */
+/*     buffer->size++; */
+/*     buffer->content[buffer->size] = '\0'; */
+/* } */
+
 void beginning_of_buffer(Buffer *buffer) {
     if (buffer != NULL && buffer->content != NULL) {
-        buffer->point = 0; // Move the cursor to the beginning of the buffer's content
+        buffer->point = 0;
     }
 }
 
 void end_of_buffer(Buffer *buffer) {
     if (buffer != NULL && buffer->content != NULL) {
-        buffer->point = buffer->size; // Move the cursor to the end of the buffer's content
+        buffer->point = buffer->size;
     }
 }
 
-
-
-void right_char(Buffer *buffer, bool shift) {
+void right_char(Buffer *buffer, bool shift, BufferManager *bm, int arg) {
     if (shift) {
         if (!buffer->region.active) {
             activateRegion(buffer);
         }
     } else {
-        if (!buffer->region.marked) buffer->region.active = false;
+        if (!buffer->region.marked) {
+            buffer->region.active = false;
+        }
     }
 
-    if (buffer->point < buffer->size) {
+    while (arg-- > 0 && buffer->point < buffer->size) {
         buffer->point++;
     }
+
+    if (buffer->point >= buffer->size) {
+        message(bm, "End of buffer");
+    }
 }
 
-void left_char(Buffer * buffer, bool shift) {
+void left_char(Buffer *buffer, bool shift, BufferManager *bm, int arg) {
     if (shift) {
         if (!buffer->region.active) {
             activateRegion(buffer);
@@ -57,31 +90,89 @@ void left_char(Buffer * buffer, bool shift) {
         if (!buffer->region.marked) buffer->region.active = false;
     }
 
-    if (buffer->point > 0) {
+    while (arg-- > 0 && buffer->point > 0) {
         buffer->point--;
     }
+
+    if (buffer->point <= 0) {
+        message(bm, "Beginning of buffer");
+    }
 }
 
 
-// TODO Remember the highest character position you were in
-// when you first called previous_line or next_line and kept calling it
-// like emacs does
-void previous_line(Buffer *buffer, bool shift) {
+
+/* void right_char(Buffer *buffer, bool shift, BufferManager *bm) { */
+/*     if (shift) { */
+/*         if (!buffer->region.active) { */
+/*             activateRegion(buffer); */
+/*         } */
+/*     } else { */
+/*         if (!buffer->region.marked) { */
+/*             buffer->region.active = false; */
+/*         } */
+/*     } */
+
+/*     if (buffer->point < buffer->size) { */
+/*         buffer->point++; */
+/*     } else { */
+/*         message(bm, "End of buffer"); */
+/*     } */
+/* } */
+
+
+/* void left_char(Buffer *buffer, bool shift, BufferManager *bm) { */
+/*     if (shift) { */
+/*         if (!buffer->region.active) { */
+/*             activateRegion(buffer); */
+/*         } */
+/*     } else { */
+/*         if (!buffer->region.marked) buffer->region.active = false; */
+/*     } */
+
+/*     if (buffer->point > 0) { */
+/*         buffer->point--; */
+/*     } else { */
+/*         message(bm, "Beginning of buffer"); */
+/*     } */
+/* } */
+
+
+/* void left_char(Buffer * buffer, bool shift) { */
+/*     if (shift) { */
+/*         if (!buffer->region.active) { */
+/*             activateRegion(buffer); */
+/*         } */
+/*     } else { */
+/*         if (!buffer->region.marked) buffer->region.active = false; */
+/*     } */
+
+/*     if (buffer->point > 0) { */
+/*         buffer->point--; */
+/*     } */
+/* } */
+
+
+
+void previous_line(Buffer *buffer, bool shift, BufferManager *bm) {
     if (shift) {
         if (!buffer->region.active) {
             activateRegion(buffer);
         }
     } else {
-        if (!buffer->region.marked) buffer->region.active = false;
+        if (!buffer->region.marked) {
+            buffer->region.active = false;
+        }
     }
-    
-    if (buffer->point == 0) return;
+
+    if (buffer->point == 0) {
+        message(bm, "Beginning of buffer");
+        return;
+    }
 
     int previousLineEnd = 0;
     int previousLineStart = 0;
     int currentLineStart = 0;
 
-    // Step backwards to find the start of the current line
     for (int i = buffer->point - 1; i >= 0; i--) {
         if (buffer->content[i] == '\n') {
             currentLineStart = i + 1;
@@ -89,39 +180,29 @@ void previous_line(Buffer *buffer, bool shift) {
         }
     }
 
-    // If we're at the start of the text, the current line is the first line
     if (currentLineStart == 0) {
         buffer->point = 0;
+        message(bm, "Beginning of buffer");
         return;
     }
 
-    // Step backwards to find the start of the previous line
-    for (int i = currentLineStart - 2; i >= 0;
-         i--) { // Start from before the newline of the current line start
+    for (int i = currentLineStart - 2; i >= 0; i--) {
         if (buffer->content[i] == '\n') {
             previousLineStart = i + 1;
             break;
         }
     }
 
-    // Step backwards to find the end of the line before the current
     for (int i = currentLineStart - 1; i >= 0; i--) {
         if (buffer->content[i] == '\n') {
             previousLineEnd = i;
             break;
         }
-        if (i == 0) { // If no newline found, the previous line end is at the start
-            // of the file
-            previousLineEnd = 0;
-        }
     }
 
-    // Calculate the desired column position
     int column = buffer->point - currentLineStart;
     int previousLineLength = previousLineEnd - previousLineStart;
 
-    // If the desired column is beyond the length of the previous line, set point
-    // at the end of the previous line
     if (column >= previousLineLength) {
         buffer->point = previousLineEnd;
     } else {
@@ -129,16 +210,17 @@ void previous_line(Buffer *buffer, bool shift) {
     }
 }
 
-void next_line(Buffer *buffer, bool shift) {
+// TODO Goal column
+void next_line(Buffer *buffer, bool shift, BufferManager *bm) {
     if (shift) {
         if (!buffer->region.active) {
             activateRegion(buffer);
         }
     } else {
-        if (!buffer->region.marked) buffer->region.active = false;
+        if (!buffer->region.marked) {
+            buffer->region.active = false;
+        }
     }
-
-    if (buffer->point >= buffer->size) return;
 
     int currentLineEnd = buffer->point;
     int nextLineStart = buffer->size;
@@ -155,23 +237,28 @@ void next_line(Buffer *buffer, bool shift) {
 
     // Calculate column position.
     int currentLineStart = buffer->point;
-    while (currentLineStart > 0 &&
-           buffer->content[currentLineStart - 1] != '\n') {
+    while (currentLineStart > 0 && buffer->content[currentLineStart - 1] != '\n') {
         currentLineStart--;
     }
     columnPosition = buffer->point - currentLineStart;
 
-    // Calculate the point position in the next line, limited by the line's
-    // length.
+    // Calculate the point position in the next line, limited by the line's length.
     size_t targetPosition = nextLineStart + columnPosition;
-    for (size_t i = nextLineStart; i <= buffer->size; i++) {
-        if (buffer->content[i] == '\n' || i == buffer->size) {
-            if (targetPosition > i)
-                targetPosition = i;
-            break;
+    if (nextLineStart >= buffer->size) {
+        // If no new line to jump to, move cursor to the end and display message
+        buffer->point = buffer->size;
+        message(bm, "End of buffer");
+    } else {
+        for (size_t i = nextLineStart; i <= buffer->size; i++) {
+            if (buffer->content[i] == '\n' || i == buffer->size) {
+                if (targetPosition > i) {
+                    targetPosition = i;
+                }
+                break;
+            }
         }
+        buffer->point = targetPosition;
     }
-    buffer->point = targetPosition;
 }
 
 void move_beginning_of_line(Buffer * buffer, bool shift) {
@@ -210,8 +297,12 @@ void move_end_of_line(Buffer *buffer, bool shift) {
     buffer->point = buffer->size; // no newline was found, go to the end of buffer
 }
 
-void delete_char(Buffer *buffer) {
-    if (buffer->point >= buffer->size) return;
+void delete_char(Buffer *buffer, BufferManager *bm) {
+    if (buffer->point >= buffer->size) {
+        message(bm, "End of buffer");
+        return;
+    }
+
     if (buffer->region.active) buffer->region.active = false;
 
     // Move all characters after the cursor left by one position
@@ -283,47 +374,19 @@ void open_line(Buffer *buffer) {
     buffer->size++;
 }
 
-void delete_indentation(Buffer *buffer) {
+void delete_indentation(Buffer *buffer, BufferManager *bm, int arg) {
     move_beginning_of_line(buffer, false);
 
     if (buffer->point > 0) {
-        left_char(buffer, false);
-        delete_char(buffer);
-        insertChar(buffer, ' ');
-        left_char(buffer, false);
+        left_char(buffer, false, bm, arg);
+        delete_char(buffer, bm);
+        insertChar(buffer, ' ', arg);
+        left_char(buffer, false, bm, arg);
     }
 }
 
-/* void backward_kill_word(Buffer *buffer) { */
-/*     if (buffer->point == 0) return; */
-
-/*     size_t originalPoint = buffer->point; */
-/*     size_t start = buffer->point; */
-/*     size_t end = buffer->point; */
-
-/*     // Skip any trailing whitespace */
-/*     while (start > 0 && isspace((unsigned char)buffer->content[start - 1])) { */
-/*         start--; */
-/*     } */
-
-/*     // Find the start of the word */
-/*     while (start > 0 && isWordChar(buffer->content[start - 1])) { */
-/*         start--; */
-/*     } */
-
-/*     size_t lengthToDelete = end - start; */
-
-/*     if (lengthToDelete > 0) { */
-/*         memmove(buffer->content + start, buffer->content + end, buffer->size - end); */
-/*         buffer->size -= lengthToDelete; */
-/*         buffer->point = start; */
-/*         buffer->content[buffer->size] = '\0';  // Null-terminate the string */
-/*     } */
-/* } */
-
-
+/// NOTE Add one indentation from the beginning of the buffer.
 void addIndentation(Buffer *buffer, int indentation) {
-    // Ensure there is enough capacity in the buffer
     if (buffer->size + indentation >= buffer->capacity) {
         buffer->capacity *= 2;
         char *newContent = realloc(buffer->content, buffer->capacity * sizeof(char));
@@ -352,6 +415,7 @@ void addIndentation(Buffer *buffer, int indentation) {
     }
 }
 
+/// NOTE Remove one indentation from the beginning of the buffer.
 void removeIndentation(Buffer *buffer, int indentation) {
     int lineStart = buffer->point;
     while (lineStart > 0 && buffer->content[lineStart - 1] != '\n') {
@@ -401,16 +465,31 @@ void freeKillRing(KillRing* kr) {
 }
 
 
+void copy_to_clipboard(const char* text) {
+    char* command;
+    // Note: Be cautious with this; if 'text' comes from user input, it may need escaping to prevent command injection.
+    asprintf(&command, "echo '%s' | xclip -selection clipboard", text);
+    if (command) {
+        system(command);
+        free(command);
+    }
+}
+
 void kill(KillRing* kr, const char* text) {
     if (kr->size >= kr->capacity) {
-        free(kr->entries[kr->index]); // free the oldest entry if the ring is full
+        // Free the oldest entry if the ring is full
+        free(kr->entries[kr->index]);
     } else {
         kr->size++;
     }
 
     kr->entries[kr->index] = strdup(text);
     kr->index = (kr->index + 1) % kr->capacity;
+
+    // Also copy the text to the system clipboard
+    copy_to_clipboard(text);
 }
+
 
 
 void kill_region(Buffer *buffer, KillRing *kr) {
@@ -457,18 +536,74 @@ void kill_region(Buffer *buffer, KillRing *kr) {
     buffer->region.active = false;
 }
 
-void yank(Buffer *buffer, KillRing *kr) {
-    if (kr->size == 0) return;
+char* paste_from_clipboard() {
+    FILE* pipe = popen("xclip -o -selection clipboard", "r");
+    if (!pipe) return NULL;
 
-    int yankIndex = (kr->index - 1 + kr->capacity) % kr->capacity;
-    char *textToYank = kr->entries[yankIndex];
+    char* result = NULL;
+    char buffer[128];
+    size_t len = 0;
 
-    if (textToYank != NULL) {
-        for (int i = 0; textToYank[i] != '\0'; ++i) {
-            insertChar(buffer, textToYank[i]);
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        size_t buffer_len = strlen(buffer);
+        char* new_result = realloc(result, len + buffer_len + 1);
+        if (!new_result) {
+            free(result);
+            pclose(pipe);
+            return NULL;
         }
+        result = new_result;
+        strcpy(result + len, buffer);
+        len += buffer_len;
+    }
+
+    if (result) {
+        result[len] = '\0';  // Ensure the string is NULL-terminated
+    }
+
+    pclose(pipe);
+    return result;
+}
+
+// TODO use the arg to yank n times
+// or yank at n lines from the cursor line positive or negative
+// could be helpful with relative line numbers,
+// emacs doesn't seem to use the universal argument for yank
+void yank(Buffer *buffer, KillRing *kr, int arg) {
+    char* textToYank = paste_from_clipboard();
+    if (textToYank) {
+        // Insert text into the buffer
+        for (int i = 0; textToYank[i] != '\0'; ++i) {
+            insertChar(buffer, textToYank[i], arg);
+        }
+
+        // Add the yanked text to the kill ring
+        if (kr->size >= kr->capacity) {
+            free(kr->entries[kr->index]);  // Free the oldest entry if the ring is full
+        } else {
+            kr->size++;
+        }
+
+        kr->entries[kr->index] = strdup(textToYank);
+        kr->index = (kr->index + 1) % kr->capacity;
+
+        free(textToYank);
     }
 }
+
+
+/* void yank(Buffer *buffer, KillRing *kr) { */
+/*     if (kr->size == 0) return; */
+
+/*     int yankIndex = (kr->index - 1 + kr->capacity) % kr->capacity; */
+/*     char *textToYank = kr->entries[yankIndex]; */
+
+/*     if (textToYank != NULL) { */
+/*         for (int i = 0; textToYank[i] != '\0'; ++i) { */
+/*             insertChar(buffer, textToYank[i]); */
+/*         } */
+/*     } */
+/* } */
 
 void kill_ring_save(Buffer *buffer, KillRing *kr) {
     if (!buffer->region.active) return;
@@ -576,8 +711,17 @@ bool isPunctuationChar(char c) {
     return strchr(",.;:!?'\"(){}[]<>-+*/&|^%$#@~", c) != NULL;
 }
 
-bool forward_word(Buffer *buffer, int count) {
+bool forward_word(Buffer *buffer, int count, bool shift) {
     if (buffer == NULL || buffer->content == NULL) return false;
+
+    if (shift) {
+        if (!buffer->region.active) {
+            activateRegion(buffer);
+        }
+    } else {
+        if (!buffer->region.marked) buffer->region.active = false;
+    }
+
 
     size_t pos = buffer->point;
     size_t end = buffer->size;
@@ -612,7 +756,9 @@ bool forward_word(Buffer *buffer, int count) {
     return true;
 }
 
-bool backward_word(Buffer *buffer, int count) {
+
+
+bool backward_word(Buffer *buffer, int count, bool shift) {
     if (buffer == NULL || buffer->content == NULL) return false;
     
     // Ensure the cursor starts within the buffer bounds
@@ -625,7 +771,7 @@ bool backward_word(Buffer *buffer, int count) {
         buffer->point--;
     }
 
-    return forward_word(buffer, -count);
+    return forward_word(buffer, -count, shift);
 }
 
 
@@ -635,18 +781,18 @@ void backward_kill_word(Buffer *buffer, KillRing *kr) {
     size_t end = buffer->point;
     size_t start = end;
 
-    // Skip any whitespace characters directly before the cursor
-    while (start > 0 && isspace((unsigned char)buffer->content[start - 1])) {
+    // Skip non-word characters (like punctuation and spaces) just before the word
+    while (start > 0 && !isWordChar(buffer->content[start - 1])) {
         start--;
     }
 
-    // Move start backward until a space is encountered or it reaches the start of the buffer
-    while (start > 0 && !isspace((unsigned char)buffer->content[start - 1])) {
+    // Move start backward until a non-word character is encountered, marking the start of the word
+    while (start > 0 && isWordChar(buffer->content[start - 1])) {
         start--;
     }
 
     size_t lengthToDelete = end - start;
-    if (lengthToDelete == 0) return; // No word to delete
+    if (lengthToDelete == 0) return; // No word to delete if length is 0
 
     // Copy the word that will be killed
     char* killed_text = malloc(lengthToDelete + 1);
@@ -672,8 +818,17 @@ void backward_kill_word(Buffer *buffer, KillRing *kr) {
 }
 
 
-void forward_paragraph(Buffer *buffer) {
+void forward_paragraph(Buffer *buffer, bool shift) {
     if (buffer == NULL || buffer->content == NULL || buffer->point >= buffer->size) return;
+
+    if (shift) {
+        if (!buffer->region.active) {
+            activateRegion(buffer);
+        }
+    } else {
+        if (!buffer->region.marked) buffer->region.active = false;
+    }
+
 
     size_t pos = buffer->point;
     bool is_empty_line = false;
@@ -694,8 +849,16 @@ void forward_paragraph(Buffer *buffer) {
     buffer->point = buffer->size;
 }
 
-void backward_paragraph(Buffer *buffer) {
+void backward_paragraph(Buffer *buffer, bool shift) {
     if (buffer == NULL || buffer->content == NULL || buffer->point == 0) return;
+
+    if (shift) {
+        if (!buffer->region.active) {
+            activateRegion(buffer);
+        }
+    } else {
+        if (!buffer->region.marked) buffer->region.active = false;
+    }
 
     size_t pos = buffer->point - 1;  // Start from one character before the current cursor position to check current line first
     bool found_empty_line = false;
@@ -713,3 +876,513 @@ void backward_paragraph(Buffer *buffer) {
     // If no empty line is found, move to start of buffer
     buffer->point = 0;
 }
+
+
+
+// TODO use tha arg, to indent n number of line after or before the point if negative
+void indent(Buffer *buffer, int indentation, BufferManager *bm, int arg) {
+    size_t cursor_row_start = 0, cursor_row_end = buffer->size;
+    int braceLevel = 0;
+    bool startsWithClosingBrace = false;
+
+    // Find the start of the current line
+    for (int i = buffer->point - 1; i >= 0; i--) {
+        if (buffer->content[i] == '\n') {
+            cursor_row_start = i + 1;
+            break;
+        }
+    }
+
+    // Find the end of the current line
+    for (size_t i = buffer->point; i < buffer->size; i++) {
+        if (buffer->content[i] == '\n') {
+            cursor_row_end = i;
+            break;
+        }
+    }
+
+    // Calculate the current brace level up to the start of the current line
+    for (size_t i = 0; i < cursor_row_start; ++i) {
+        char c = buffer->content[i];
+        if (c == '{') {
+            braceLevel++;
+        } else if (c == '}') {
+            braceLevel = (braceLevel > 0) ? braceLevel - 1 : 0;
+        }
+    }
+
+    // Check if the current line starts with a '}' before any other non-whitespace character
+    size_t firstNonWhitespace = cursor_row_start;
+    while (firstNonWhitespace < cursor_row_end && isspace(buffer->content[firstNonWhitespace])) {
+        firstNonWhitespace++;
+    }
+    if (firstNonWhitespace < cursor_row_end && buffer->content[firstNonWhitespace] == '}') {
+        startsWithClosingBrace = true;
+        braceLevel = (braceLevel > 0) ? braceLevel - 1 : 0;  // Decrement brace level for the line that starts with }
+    }
+
+    // Determine indentation level
+    int requiredIndentation = braceLevel * indentation;
+    int currentIndentation = 0;
+
+    // Count existing spaces at the beginning of the line
+    size_t i = cursor_row_start;
+    while (i < cursor_row_end && isspace(buffer->content[i])) {
+        if (buffer->content[i] == ' ') currentIndentation++;
+        i++;
+    }
+
+    // Adjust indentation to the required level
+    size_t old_point = buffer->point;  // Save old cursor position
+    buffer->point = cursor_row_start; // Move cursor to the start of the line
+
+    while (currentIndentation < requiredIndentation) {
+        insertChar(buffer, ' ', arg); // Insert additional spaces
+        currentIndentation++;
+    }
+    while (currentIndentation > requiredIndentation && currentIndentation > 0) {
+        delete_char(buffer, bm); // Delete excess spaces
+        currentIndentation--;
+    }
+
+    // Correct cursor position based on the previous position of non-whitespace text
+    if (old_point >= firstNonWhitespace) {
+        buffer->point = old_point - (firstNonWhitespace - cursor_row_start - requiredIndentation);
+    } else {
+        buffer->point = cursor_row_start + requiredIndentation;
+    }
+}
+
+// FIXME
+void indent_region(Buffer *buffer, BufferManager *bm, int indentation, int arg) {
+    if (!buffer->region.active) {
+        printf("No active region to indent.\n");
+        return; // No region active, nothing to indent
+    }
+
+    size_t start = buffer->region.start;
+    size_t end = buffer->region.end;
+
+    // Ensure start is less than end
+    if (start > end) {
+        size_t temp = start;
+        start = end;
+        end = temp;
+    }
+
+    // Normalize start to the beginning of the first line in the region
+    while (start > 0 && buffer->content[start - 1] != '\n') {
+        start--;
+    }
+
+    // Normalize end to the end of the last line in the region
+    while (end < buffer->size && buffer->content[end] != '\n') {
+        end++;
+    }
+
+    // Save cursor's original line and column
+    size_t cursor_line = 0;
+    size_t line_start = 0;
+    int cursor_column = 0;
+    for (size_t i = 0; i < buffer->point; i++) {
+        if (buffer->content[i] == '\n') {
+            cursor_line++;
+            line_start = i + 1;
+        }
+    }
+    cursor_column = buffer->point - line_start;
+
+    // Process each line within the region
+    size_t current_line_start = start;
+    while (current_line_start < end) {
+        buffer->point = current_line_start;
+        indent(buffer, indentation, bm, arg);  // Apply the indent function once per line
+
+        // Move to the start of the next line
+        do {
+            current_line_start++;
+        } while (current_line_start < buffer->size && buffer->content[current_line_start] != '\n');
+        current_line_start++; // Move past the newline character, if not at the end of buffer
+    }
+
+    // Restore cursor's original line and column
+    size_t new_line_start = start;
+    size_t current_line = 0;
+    while (current_line < cursor_line && new_line_start < buffer->size) {
+        if (buffer->content[new_line_start] == '\n') {
+            current_line++;
+        }
+        new_line_start++;
+    }
+
+    // Find the start of the cursor's original line
+    size_t cursor_new_position = new_line_start;
+    while (cursor_column > 0 && cursor_new_position < buffer->size && buffer->content[cursor_new_position] != '\n') {
+        cursor_new_position++;
+        cursor_column--;
+    }
+
+    buffer->point = cursor_new_position;
+}
+
+
+
+void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm,
+           Buffer *minibuffer, Buffer *prompt,
+           ISearch *isearch, int indentation, bool electric_indent_mode,
+           int sw, int sh,
+           NamedHistories *nh, int arg) {
+    if (buffer->region.active) buffer->region.active = false;
+    if (isearch->searching) {
+        add_to_history(nh, prompt->content, minibuffer->content);
+        isearch->lastSearch = strdup(minibuffer->content);
+        minibuffer->size = 0;
+        minibuffer->point = 0;
+        minibuffer->content[0] = '\0';
+        isearch->searching = false;
+        prompt->content = strdup("");
+    } else if (strcmp(prompt->content, "Find file: ") == 0) {
+        add_to_history(nh, prompt->content, minibuffer->content);
+        find_file(bm, wm, sw, sh);
+        minibuffer->size = 0;
+        minibuffer->point = 0;
+        minibuffer->content[0] = '\0';
+        prompt->content = strdup("");
+        ctrl_x_pressed = false; // NOTE this is hardcoded because we cant reset ctrl_x_pressed
+        // inside the key callback (for now) TODO
+    } else if (strcmp(prompt->content, "Goto line: ") == 0) {
+        add_to_history(nh, prompt->content, minibuffer->content);
+        goto_line(bm, wm, sw, sh);
+        minibuffer->size = 0;
+        minibuffer->point = 0;
+        minibuffer->content[0] = '\0';
+        prompt->content = strdup("");
+    } else {
+        if (buffer->point > 0 && buffer->point < buffer->size &&
+            buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
+            // Insert a newline and indent for the opening brace
+            insertChar(buffer, '\n', arg);
+            if (electric_indent_mode) {
+                indent(buffer, indentation, bm, arg);
+            }
+
+            size_t newCursorPosition = buffer->point;
+            insertChar(buffer, '\n', arg);
+
+            if (electric_indent_mode) {
+                indent(buffer, indentation, bm, arg);
+            }
+
+            buffer->point = newCursorPosition;
+        } else {
+            insertChar(buffer, '\n', arg);
+        }
+
+        if (electric_indent_mode) {
+            indent(buffer, indentation, bm, arg);
+        }
+    }
+}
+
+// TODO Dired when calling find_file on a directory
+// TODO Create files when they don't exist (and directories to get to that file)
+void find_file(BufferManager *bm, WindowManager *wm, int sw, int sh) {
+    Buffer *minibuffer = getBuffer(bm, "minibuffer");
+    Buffer *prompt = getBuffer(bm, "prompt");
+
+    if (minibuffer->size == 0) {
+        if (bm->lastBuffer && bm->lastBuffer->path) {
+            minibuffer->size = 0;
+            minibuffer->content[0] = '\0';
+            minibuffer->point = 0;
+            setBufferContent(minibuffer, bm->lastBuffer->path);
+        }
+        free(prompt->content);
+        prompt->content = strdup("Find file: ");
+        switchToBuffer(bm, "minibuffer");
+        return;
+    }
+
+    const char *homeDir = getenv("HOME");
+    char fullPath[PATH_MAX];
+    const char *filePath = minibuffer->content;
+
+    // Resolve full path
+    if (filePath[0] == '~') {
+        if (homeDir) {
+            snprintf(fullPath, sizeof(fullPath), "%s%s", homeDir, filePath + 1);
+        } else {
+            fprintf(stderr, "Environment variable HOME is not set.\n");
+            return;
+        }
+    } else {
+        strncpy(fullPath, filePath, sizeof(fullPath) - 1);
+        fullPath[sizeof(fullPath) - 1] = '\0'; // Ensure null termination
+    }
+
+    FILE *file = fopen(fullPath, "r");
+    if (file) {
+        // Creating buffer with '~' notation for user-friendly display
+        char displayPath[PATH_MAX];
+        if (strncmp(fullPath, homeDir, strlen(homeDir)) == 0) {
+            snprintf(displayPath, sizeof(displayPath), "~%s", fullPath + strlen(homeDir));
+        } else {
+            strncpy(displayPath, fullPath, sizeof(displayPath));
+            displayPath[sizeof(displayPath) - 1] = '\0';
+        }
+
+        newBuffer(bm, wm, displayPath, displayPath, fontname, sw, sh);
+        Buffer *fileBuffer = getBuffer(bm, displayPath);
+
+        if (fileBuffer) {
+            fileBuffer->content = malloc(sizeof(char) * 1024);
+            fileBuffer->capacity = 1024;
+            fileBuffer->size = 0;
+
+            char buffer[1024]; // Temporary buffer for reading file content
+            size_t bytesRead;
+            while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+                if (fileBuffer->size + bytesRead >= fileBuffer->capacity) {
+                    fileBuffer->capacity = (fileBuffer->size + bytesRead) * 2;
+                    char *newContent = realloc(fileBuffer->content, fileBuffer->capacity);
+                    if (!newContent) {
+                        free(fileBuffer->content);
+                        fclose(file);
+                        fprintf(stderr, "Failed to allocate memory for file content.\n");
+                        return;
+                    }
+                    fileBuffer->content = newContent;
+                }
+                memcpy(fileBuffer->content + fileBuffer->size, buffer, bytesRead);
+                fileBuffer->size += bytesRead;
+            }
+            fileBuffer->content[fileBuffer->size] = '\0';
+            fclose(file);
+            switchToBuffer(bm, fileBuffer->name);
+        } else {
+            fprintf(stderr, "Failed to retrieve or create buffer for file: %s\n", displayPath);
+            fclose(file);
+        }
+    } else {
+        fprintf(stderr, "File does not exist: %s\n", fullPath);
+    }
+}
+
+void backspace(Buffer *buffer, bool electric_pair_mode) {
+    if (buffer->point > 0 && electric_pair_mode) {
+        // Check if backspacing over an opening character that has a closing pair right after
+        unsigned int currentChar = buffer->content[buffer->point - 1];
+        unsigned int nextChar = buffer->content[buffer->point];
+        if ((currentChar == '(' && nextChar == ')') ||
+            (currentChar == '[' && nextChar == ']') ||
+            (currentChar == '{' && nextChar == '}') ||
+            (currentChar == '\'' && nextChar == '\'') ||
+            (currentChar == '\"' && nextChar == '\"')) {
+            // Remove both characters
+            memmove(buffer->content + buffer->point - 1, buffer->content + buffer->point + 1, buffer->size - buffer->point - 1);
+            buffer->size -= 2;
+            buffer->point--;
+            buffer->content[buffer->size] = '\0';
+            return;
+        }
+    }
+    // Default backspace behavior when not deleting a pair
+    if (buffer->point > 0) {
+        buffer->point--;
+        memmove(buffer->content + buffer->point, buffer->content + buffer->point + 1, buffer->size - buffer->point);
+        buffer->size--;
+        buffer->content[buffer->size] = '\0';
+    }
+}
+
+
+void goto_line(BufferManager *bm, WindowManager *wm, int sw, int sh) {
+    Buffer *minibuffer = getBuffer(bm, "minibuffer");
+    Buffer *prompt = getBuffer(bm, "prompt");
+
+    // Activate minibuffer with "Goto line: " if it's empty
+    if (minibuffer->size == 0) {
+        if (bm->lastBuffer && bm->lastBuffer->name) {
+            minibuffer->size = 0;
+            minibuffer->point = 0;
+            minibuffer->content[0] = '\0';
+            free(prompt->content);
+            prompt->content = strdup("Goto line: ");
+            switchToBuffer(bm, "minibuffer");
+        } else {
+            message(bm, "No last buffer to go to.");
+        }
+        return;
+    }
+
+    // Parse the input as a line number and navigate
+    long line_number = strtol(minibuffer->content, NULL, 10); // Parse the input to get the line number
+    if (line_number <= 0) {
+        message(bm, "Invalid line number.");
+        return;
+    }
+
+    // Assume last buffer is the target unless otherwise specified
+    Buffer *targetBuffer = bm->lastBuffer;
+    if (!targetBuffer || !targetBuffer->content) {
+        message(bm, "No valid last buffer.");
+        return;
+    }
+
+    size_t index = 0;
+    long current_line = 1;
+
+    // Traverse the buffer content to find the start of the specified line
+    while (current_line < line_number && index < targetBuffer->size) {
+        if (targetBuffer->content[index] == '\n') {
+            current_line++;
+        }
+        index++;
+    }
+
+    // If we found the line, set the cursor position
+    if (current_line == line_number) {
+        targetBuffer->point = index;
+    } else {
+        message(bm, "Line number exceeds total number of lines in the last buffer.");
+    }
+
+    // Clear minibuffer after operation
+    minibuffer->size = 0;
+    minibuffer->point = 0;
+    minibuffer->content[0] = '\0';
+    prompt->content = strdup("");
+    switchToBuffer(bm, targetBuffer->name);
+}
+
+
+void navigate_list(Buffer *buffer, int arg) {
+    int direction = (arg > 0) ? 1 : -1;
+    int groupsToMove = abs(arg);
+    int depth = 0;
+    size_t pos = buffer->point;
+    bool foundGroup = false;
+
+    while (groupsToMove > 0 && pos >= 0 && pos < buffer->size) {
+        char c = buffer->content[pos];
+        if ((direction == 1 && (c == '(' || c == '[' || c == '{')) ||
+            (direction == -1 && (c == ')' || c == ']' || c == '}'))) {
+            depth += direction;
+        } else if ((direction == 1 && (c == ')' || c == ']' || c == '}')) ||
+                   (direction == -1 && (c == '(' || c == '[' || c == '{'))) {
+            depth -= direction;
+            if (depth == 0) {
+                foundGroup = true;
+                groupsToMove--;
+            }
+        }
+        pos += direction;
+    }
+
+    if (foundGroup && groupsToMove == 0) {
+        buffer->point = pos - direction;  // Adjust position back to the last valid position
+    } else {
+        printf("No %s group\n", (arg > 0) ? "next" : "previous");
+    }
+}
+
+void forward_list(Buffer *buffer, int arg) {
+    if (arg == 0) arg = 1;  // Default to moving across one group
+    navigate_list(buffer, arg);
+    buffer->point += 1;
+}
+
+void backward_list(Buffer *buffer, int arg) {
+    if (arg == 0) arg = 1;  // Default to moving across one group
+    navigate_list(buffer, -arg);
+}
+
+// NOTE This will be useful to implement LSP
+void moveTo(Buffer *buffer, int ln, int col) {
+    size_t current_line = 1; // Start counting lines from 1
+    size_t current_column = 0; // Column count for the current line
+    size_t i = 0;
+
+    if (buffer == NULL || buffer->content == NULL) {
+        printf("Buffer is not initialized.\n");
+        return;
+    }
+
+    // Traverse the buffer until the desired line
+    while (i < buffer->size && current_line < ln) {
+        if (buffer->content[i] == '\n') {
+            current_line++;
+            current_column = 0; // Reset column at the start of a new line
+        }
+        i++;
+    }
+
+    // If the line was found, position at the specified column
+    if (current_line == ln) {
+        size_t line_start = i;
+        while (current_column < col && i < buffer->size && buffer->content[i] != '\n') {
+            i++;
+            current_column++;
+        }
+        if (current_column == col) {
+            buffer->point = i - 1;
+        } else {
+            printf("Column number exceeds the length of the line. Positioning at line end.\n");
+            buffer->point = i; // If column exceeds line length, position at end of line
+        }
+    } else {
+        printf("Line number exceeds the total number of lines in the buffer.\n");
+    }
+
+    // Ensure the cursor does not end up beyond the actual content
+    if (buffer->point > buffer->size) {
+        buffer->point = buffer->size;
+    }
+}
+
+// FIXME
+void delete_blank_lines(Buffer *buffer, int arg) {
+    if (buffer == NULL || buffer->content == NULL) return;
+
+    size_t point = buffer->point;
+    size_t length = buffer->size;
+
+    // Check if the current position is on a non-blank line; if yes, do nothing.
+    size_t current = point;
+    while (current < length && buffer->content[current] != '\n') {
+        if (!isspace((unsigned char)buffer->content[current])) {
+            return; // Current line is not blank, do nothing.
+        }
+        current++;
+    }
+
+    size_t start = point;
+    size_t end = point;
+
+    // Extend start backwards to include all blank lines before the current point
+    while (start > 0 && (buffer->content[start - 1] == '\n' || isspace((unsigned char)buffer->content[start - 1]))) {
+        start--;
+        if (start > 0 && buffer->content[start - 1] == '\n' && !isspace((unsigned char)buffer->content[start - 1])) {
+            start++; // Leave one newline character
+            break;
+        }
+    }
+
+    // Extend end forwards to include all blank lines after the current point
+    while (end < length && (buffer->content[end] == '\n' || isspace((unsigned char)buffer->content[end]))) {
+        end++;
+        if (end < length && buffer->content[end] == '\n' && !isspace((unsigned char)buffer->content[end])) {
+            break;
+        }
+    }
+
+    // Ensure to keep one blank line where the point was
+    if (start < point) {
+        memmove(buffer->content + start + 1, buffer->content + end, length - end + 1); // +1 for null terminator
+        buffer->size = buffer->size - (end - start - 1);
+        buffer->content[start] = '\n'; // Set a single newline at the start
+        buffer->point = start; // Set point at the beginning of the preserved newline
+    }
+    insertChar(buffer, '\n', arg);
+}
+

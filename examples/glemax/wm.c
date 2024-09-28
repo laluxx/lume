@@ -13,7 +13,7 @@ void initWindowManager(WindowManager *wm, BufferManager *bm, Font *font, int sw,
     wm->head->next = NULL;
     wm->head->isActive = true;
     wm->activeWindow = wm->head;
-    wm->activeWindow->splitOrientation = HORIZONTAL;
+    wm->activeWindow->splitOrientation = VERTICAL;
     wm->count = 1;
 }
 
@@ -260,4 +260,18 @@ void printActiveWindowDetails(WindowManager *wm) {
     printf("  Previous Window: %p\n", (void *)win->prev);
     printf("  Next Window: %p\n", (void *)win->next);
 }
+
+
+bool isBottomWindow(WindowManager *wm, Window *window) {
+    // Assuming vertical stacking of windows:
+    for (Window *current = wm->head; current != NULL; current = current->next) {
+        // Check if there is another window starting below the current one
+        if (current != window && current->y > window->y) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
 

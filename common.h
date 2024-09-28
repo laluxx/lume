@@ -6,6 +6,11 @@ typedef struct {
     float y;
 } Vec2f;
 
+typedef struct {
+    float x;
+    float y;
+    float z;
+} Vec3f;
 
 typedef struct {
     float r;

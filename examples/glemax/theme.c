@@ -22,6 +22,7 @@ void initThemes() {
         .show_paren_match = hexToColor("#222225"),
         .isearch_highlight = hexToColor("#303035"),
         .minibuffer_prompt = hexToColor("#4d9391"),
+        .message = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
     };
 
@@ -36,6 +37,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#272C3A"),
         .minibuffer_prompt = hexToColor("#9587DD"),
         .region = hexToColor("#272C3A"),
+        .message = hexToColor("#4d9391"),
     };
 
     themes[2] = (Theme){
@@ -49,6 +51,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#32324A"),
         .minibuffer_prompt = hexToColor("#738FD7"),
         .region = hexToColor("#2E403B"),
+        .message = hexToColor("#4d9391"),
     };
 
     themes[3] = (Theme){
@@ -62,6 +65,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#303035"),
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
+        .message = hexToColor("#4d9391"),
     };
 
     themes[4] = (Theme){
@@ -75,6 +79,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#303035"),
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
+        .message = hexToColor("#4d9391"),
     };
   
     themes[5] = (Theme){
@@ -88,6 +93,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#303035"),
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
+        .message = hexToColor("#4d9391"),
     };
 
     themes[6] = (Theme){
@@ -101,6 +107,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#303035"),
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
+        .message = hexToColor("#4d9391"),
     };
 
     themes[7] = (Theme){
@@ -114,6 +121,7 @@ void initThemes() {
         .isearch_highlight = hexToColor("#303035"),
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
+        .message = hexToColor("#4d9391"),
     };
 }
 

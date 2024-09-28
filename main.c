@@ -125,7 +125,7 @@ int main(void) {
                      (Vec2f){200.0f, 100.0f},
                      (Vec2f){150.0f, 200.0f});
 
-        drawTriangleColors((Vec2f){100.0f, 50.0f}, RED, (Vec2f){1.0f, 0.0f},
+        drawTriangleEx((Vec2f){100.0f, 50.0f}, RED, (Vec2f){1.0f, 0.0f},
                            (Vec2f){50.0f, 50.0f},  MAGENTA,     (Vec2f){0.0f, 0.0f},
                            (Vec2f){75.0f, 100.0f}, CYAN,       (Vec2f){0.5f, 1.0f});
 

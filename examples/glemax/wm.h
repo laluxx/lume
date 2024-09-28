@@ -16,5 +16,5 @@ void delete_window(WindowManager *wm);
 void other_window(WindowManager *wm, int direction);
 void updateWindows(WindowManager *wm, Font *font, int newWidth, int newHeight);
 void printActiveWindowDetails(WindowManager *wm);
-
+bool isBottomWindow(WindowManager *wm, Window *window);
 #endif // WM_H

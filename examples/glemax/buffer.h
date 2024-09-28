@@ -5,13 +5,6 @@
 #include <stdbool.h>
 #include "font.h"
 
-#define MAX_FONT_SCALE 27
-#define MIN_FONT_SCALE -8
-#define MAX_FONT_SCALE_INDEX 36
-#define SCALE_ZERO_INDEX 8
-
-extern Font *globalFontCache[MAX_FONT_SCALE_INDEX];  // Global cache of rasterized fonts
-
 typedef struct {
     int index;         // Current index for the font size
     int fontSizes[36]; // Font sizes from scale -8 to +27
@@ -21,7 +14,8 @@ typedef struct {
     size_t start;   // Start position of the region
     size_t end;     // End position of the region
     bool active;    // Whether the region is currently active
-    bool marked;    // Whether the region was activated by pressing C-SPC 
+    bool marked;    // Whether the region was activated by pressing C-SPC
+    // TODO we could store the mark inside the region
 } Region;
 
 typedef struct {
@@ -62,7 +56,6 @@ typedef struct Window {
     struct Window *next; // Next window in the list
     bool isActive;       // Is this the active window?
     SplitOrientation splitOrientation;
-    int lineOffset; // Line offset for vertical scrolling
 } Window;
 
 typedef struct {
@@ -72,10 +65,10 @@ typedef struct {
 } WindowManager;
 
 void initBuffer(Buffer *buffer, const char *name, const char *path);
-/* void newBuffer(BufferManager *manager, WindowManager *wm, const char *name, const char *path); */
+
 void newBuffer(BufferManager *manager, WindowManager *wm,
-               const char *name, const char *path,
-               char *fontname);
+               const char *name, const char *path, char *fontname,
+               int sw, int sh);
 
 
 void freeBuffer(Buffer *buffer);
@@ -96,19 +89,5 @@ void deactivateRegion(Buffer *buffer);
 void setBufferContent(Buffer *buffer, const char *newContent);
 void message(BufferManager *bm, const char *message);
 void cleanBuffer(BufferManager *bm, char *name);
-
-// FONT 
-void initScale(Scale *scale);
-/* Font* updateFont(Scale *scale, int newIndex); */
-Font* updateFont(Scale *scale, int newIndex, char *fontname);
-/* void increaseFontSize(Buffer *buffer); */
-/* void decreaseFontSize(Buffer *buffer); */
-void increaseFontSize(Buffer *buffer, char *fontname);
-void decreaseFontSize(Buffer *buffer, char *fontname);
-
-
-
-
-
 
 #endif

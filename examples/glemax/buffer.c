@@ -1,9 +1,8 @@
 #include "buffer.h"
+#include "faces.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-Font *globalFontCache[MAX_FONT_SCALE_INDEX] = {NULL};
 
 void initBuffer(Buffer *buffer, const char *name, const char *path) {
     buffer->capacity = 1024;  // Initial capacity
@@ -24,7 +23,9 @@ void initBuffer(Buffer *buffer, const char *name, const char *path) {
     }
 }
 
-void newBuffer(BufferManager *manager, WindowManager *wm, const char *name, const char *path, char *fontname) {
+void newBuffer(BufferManager *manager, WindowManager *wm,
+               const char *name, const char *path, char *fontname,
+               int sw, int sh) {
     Buffer *buffer = malloc(sizeof(Buffer));
     if (buffer == NULL) {
         fprintf(stderr, "Failed to allocate memory for new buffer.\n");
@@ -32,15 +33,15 @@ void newBuffer(BufferManager *manager, WindowManager *wm, const char *name, cons
     }
     
     initBuffer(buffer, name, path);
-    initScale(&buffer->scale);
-    buffer->font = loadFont(fontname, buffer->scale.fontSizes[buffer->scale.index]);
+    initScale(&buffer->scale); // Ensure this sets the default index properly
+    buffer->font = loadFont(fontname, buffer->scale.fontSizes[buffer->scale.index]); // Make sure this loads the font metrics
 
     if (manager->count >= manager->capacity) {
         manager->capacity *= 2;
         Buffer **newBuffers = realloc(manager->buffers, sizeof(Buffer*) * manager->capacity);
         if (newBuffers == NULL) {
             fprintf(stderr, "Failed to expand buffer manager capacity.\n");
-            free(buffer);
+            free(buffer); // Free allocated buffer on failure
             return;
         }
         manager->buffers = newBuffers;
@@ -48,9 +49,11 @@ void newBuffer(BufferManager *manager, WindowManager *wm, const char *name, cons
     
     manager->buffers[manager->count++] = buffer;
     
-    // Set the buffer in the active window, ensuring it is immediately visible
+    // Set the buffer in the active window, ensuring it is immediately visible and correctly positioned
     if (wm->activeWindow) {
         wm->activeWindow->buffer = buffer;
+        wm->activeWindow->y = sh - buffer->font->ascent + buffer->font->descent;
+        wm->activeWindow->height = wm->activeWindow->y; // Adjust height to maintain text position
     }
     
     // Optionally set the global active buffer if needed
@@ -127,8 +130,6 @@ bool isCurrentBuffer(BufferManager *manager, const char *bufferName) {
     return false;
 }
 
-
-
 void nextBuffer(BufferManager *manager) {
     if (manager->count > 0) {
         manager->activeIndex = (manager->activeIndex + 1) % manager->count;
@@ -147,8 +148,6 @@ void previousBuffer(BufferManager *manager) {
     }
 }
 
-
-
 void activateRegion(Buffer *buffer) {
     if (!buffer->region.active) {
         buffer->region.start = buffer->region.end = buffer->point;
@@ -165,8 +164,6 @@ void updateRegion(Buffer *buffer, size_t new_point) {
 void deactivateRegion(Buffer *buffer) {
     buffer->region.active = false;
 }
-
-
 
 void setBufferContent(Buffer *buffer, const char *newContent) {
     size_t newContentSize = strlen(newContent) + 1; // +1 for the null terminator
@@ -188,16 +185,31 @@ void setBufferContent(Buffer *buffer, const char *newContent) {
     buffer->point = buffer->size; // Optionally reset the cursor position
 }
 
-
-
 void message(BufferManager *bm, const char *message) {
     Buffer *minibuffer = getBuffer(bm, "minibuffer");
-    if (minibuffer) {
-        setBufferContent(minibuffer, message);
+    Buffer *messageBuffer = getBuffer(bm, "message");
+
+    // Prepare the message string with square brackets
+    size_t messageLen = strlen(message);
+    size_t totalLen = messageLen + 3; // For '[' + ']' + '\0'
+    char *formattedMessage = malloc(totalLen);
+
+    if (formattedMessage) {
+        snprintf(formattedMessage, totalLen, "[%s]", message);
+
+        if (isCurrentBuffer(bm, "minibuffer")) {
+              setBufferContent(messageBuffer, formattedMessage);
+        } else {
+            setBufferContent(minibuffer, message);
+        }
+
+        free(formattedMessage);
     } else {
-        fprintf(stderr, "Minibuffer not found.\n");
+        // Handle memory allocation failure if needed
+        fprintf(stderr, "Failed to allocate memory for formatted message.\n");
     }
 }
+
 
 void cleanBuffer(BufferManager *bm, char *name) {
     Buffer *buffer = getBuffer(bm, name);
@@ -205,45 +217,3 @@ void cleanBuffer(BufferManager *bm, char *name) {
     buffer->point = 0;
     buffer->content[0] = '\0';
 }
-
-void initScale(Scale *scale) {
-    int sizes[] = {3, 4, 5, 6, 7, 9, 10, 12, 15, 18, 22, 26, 31, 37, 45, 54, 64, 77, 93, 111, 134, 161, 193, 231, 277, 333, 400, 480, 575, 690, 829, 994, 1194, 1432, 1718, 2062};
-    for (int i = 0; i < MAX_FONT_SCALE_INDEX; i++) {
-        scale->fontSizes[i] = sizes[i];
-    }
-    scale->index = SCALE_ZERO_INDEX;
-}
-
-
-Font* updateFont(Scale *scale, int newIndex, char *fontname) {
-    if (newIndex < 0 || newIndex >= MAX_FONT_SCALE_INDEX) {
-        fprintf(stderr, "Font scale index out of range!\n");
-        return NULL;
-    }
-    scale->index = newIndex;
-    if (!globalFontCache[scale->index]) {  // Check if font is not already loaded
-        globalFontCache[scale->index] = loadFont(fontname , scale->fontSizes[scale->index]);
-    }
-    return globalFontCache[scale->index];
-}
-
-void increaseFontSize(Buffer *buffer, char *fontname) {
-    Scale *scale = &buffer->scale;
-    int nextIndex = scale->index + 1;
-    if (nextIndex <= SCALE_ZERO_INDEX + MAX_FONT_SCALE) {  // Ensure index does not exceed +27 scale
-        buffer->font = updateFont(scale, nextIndex, fontname);
-    }
-}
-
-void decreaseFontSize(Buffer *buffer, char *fontname) {
-    Scale *scale = &buffer->scale;
-    int nextIndex = scale->index - 1;
-    if (nextIndex >= SCALE_ZERO_INDEX + MIN_FONT_SCALE) {  // Ensure index does not drop below -8 scale
-        buffer->font = updateFont(scale, nextIndex, fontname);
-    }
-}
-
-
-
-
-
