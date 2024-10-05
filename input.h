@@ -3,25 +3,36 @@
 
 #include <GLFW/glfw3.h>
 #include <stdbool.h>
+#include "common.h"
 
-// Define a type for text input callbacks
-typedef void (*TextInputCallback)(unsigned int codepoint);
-extern TextInputCallback currentTextInputCallback;
-// Function to register a text input callback
-void registerTextInputCallback(TextInputCallback callback);
-
-
-// Define another type for key input callbacks
+typedef void (*TextCallback)(unsigned int codepoint);
 typedef void (*KeyInputCallback)(int key, int action, int mods);
-extern KeyInputCallback currentKeyInputCallback;
-// Function to register key input callback
-void registerKeyInputCallback(KeyInputCallback callback);
+typedef void (*MouseButtonCallback)(int button, int action, int mods);
+typedef void (*CursorPosCallback)(double xpos, double ypos);
 
+extern TextCallback currentTextCallback;
+extern KeyInputCallback currentKeyCallback;
+extern MouseButtonCallback currentMouseButtonCallback;
+extern CursorPosCallback currentCursorPosCallback;
+
+void registerTextCallback(TextCallback callback);
+void registerKeyCallback(KeyInputCallback callback);
+void registerMouseButtonCallback(MouseButtonCallback callback);
+void registerCursorPosCallback(CursorPosCallback callback);
 
 void initInput();
 void updateInput();
 int isKeyDown(int key);
 int isKeyPressed(int key);
+
+GLFWwindow* getCurrentContext();
+
+void getCursorPosition(double* x, double* y);
+Vec2f getMouseDelta();
+
+int isMouseButtonPressed(int button);
+int isMouseButtonReleased(int button);
+int isMouseButtonDown(int button);
 
 int isGamepadButtonPressed(int button);
 int isGamepadButtonDown(int button);

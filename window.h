@@ -20,5 +20,4 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void char_callback(GLFWwindow* window, unsigned int codepoint);
 
 
-
 #endif // WINDOW_H

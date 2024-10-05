@@ -18,7 +18,6 @@ int screenWidth, screenHeight;
 
 int main(void) {
     GLFWwindow* window;
-    
     if (!glfwInit())
         return -1;
 

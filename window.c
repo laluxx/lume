@@ -9,14 +9,26 @@
 static GLFWwindow* g_window = NULL;
 
 void char_callback(GLFWwindow* window, unsigned int codepoint) {
-    if (currentTextInputCallback != NULL) {
-        currentTextInputCallback(codepoint);  // Forward the codepoint to the registered handler
+    if (currentTextCallback != NULL) {
+        currentTextCallback(codepoint);
     }
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (currentKeyInputCallback != NULL) {
-        currentKeyInputCallback(key, action, mods);  // Forward the event to the registered handler
+    if (currentKeyCallback != NULL) {
+        currentKeyCallback(key, action, mods);
+    }
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (currentMouseButtonCallback != NULL) {
+        currentMouseButtonCallback(button, action, mods);
+    }
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (currentCursorPosCallback != NULL) {
+        currentCursorPosCallback(xpos, ypos);
     }
 }
 
@@ -45,6 +57,8 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     glfwMakeContextCurrent(g_window);
     glfwSetCharCallback(g_window, char_callback); // Set the character callback
     glfwSetKeyCallback(g_window, key_callback);   // Set key callback
+    glfwSetMouseButtonCallback(g_window, mouse_button_callback);  // Set mouse button callback
+    glfwSetCursorPosCallback(g_window, cursor_position_callback);  // Set cursor position callback
 
     // Initialize GLEW
     /* glewExperimental = GL_TRUE;  // Enable GLEW experimental mode */
@@ -129,8 +143,8 @@ double getTime() {
 
 #include <stdbool.h>
 
+// TODO
 bool printWindowSize = true;
-
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 
@@ -140,3 +154,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 
     updateProjectionMatrix(width, height);
 }
+
+
+
+

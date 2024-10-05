@@ -1,6 +1,6 @@
 #include "isearch.h"
 
-void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex, ISearch *is) {
+void isearch_forward(Buffer *buffer, BufferManager *bm, Buffer *minibuffer, bool updateStartIndex, ISearch *is) {
     const char *start = buffer->content + is->startIndex;
     const char *found = strstr(start, minibuffer->content);
 
@@ -14,13 +14,14 @@ void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex, 
         is->wrap = false;
     } else {
         if (!is->wrap) {
-            printf("Reached end of buffer. Press Ctrl+S again to wrap search.\n");
+            /* printf("Reached end of buffer. Press Ctrl+S again to wrap search.\n"); */
+            message(bm, "Reached end of buffer");
             is->wrap = true;
         } else {
             if (updateStartIndex) {
                 is->startIndex = 0;
                 is->wrap = false;
-                isearch_forward(buffer, minibuffer, false, is);
+                isearch_forward(buffer, bm, minibuffer, false, is);
             }
         }
     }

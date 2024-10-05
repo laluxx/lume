@@ -3,25 +3,76 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "syntax.h"
 
 void initBuffer(Buffer *buffer, const char *name, const char *path) {
-    buffer->capacity = 1024;  // Initial capacity
+    if (!parser) {  // Ensure the global parser is initialized
+        fprintf(stderr, "Parser not initialized.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    buffer->capacity = 1024;
     buffer->content = malloc(buffer->capacity);
+    if (!buffer->content) {
+        fprintf(stderr, "Failed to allocate memory for buffer content.\n");
+        exit(EXIT_FAILURE);
+    }
+    buffer->content[0] = '\0'; // Initialize content as empty string
     buffer->size = 0;
     buffer->point = 0;
     buffer->readOnly = false;
-    buffer->name = strdup(name);  // Duplicate the name for ownership
-    buffer->path = strdup(path);  // Duplicate the path for ownership
+    buffer->name = strdup(name);
+    buffer->path = strdup(path);
     buffer->region.active = false;
     buffer->scale.index = 0;
-    
-    if (buffer->content == NULL || buffer->name == NULL || buffer->path == NULL) {
-        fprintf(stderr, "Failed to allocate memory for buffer.\n");
-        exit(EXIT_FAILURE);
-    } else {
-        buffer->content[0] = '\0';  // Initialize content as empty string
-    }
+
+    // Initialize syntax tree
+    buffer->tree = ts_parser_parse_string(parser, NULL, buffer->content, buffer->size);
+    initSyntaxArray(&buffer->syntaxArray, 10);
 }
+
+
+/* void initBuffer(Buffer *buffer, const char *name, const char *path) { */
+/*     buffer->capacity = 1024;  // Initial capacity */
+/*     buffer->content = malloc(buffer->capacity); */
+/*     buffer->size = 0; */
+/*     buffer->point = 0; */
+/*     buffer->readOnly = false; */
+/*     buffer->name = strdup(name);  // Duplicate the name for ownership */
+/*     buffer->path = strdup(path);  // Duplicate the path for ownership */
+/*     buffer->region.active = false; */
+/*     buffer->scale.index = 0; */
+
+/*     buffer->tree = ts_parser_parse_string(parser, NULL, buffer->content, buffer->size); */
+/*     initSyntaxArray(&buffer->syntaxArray, 10);  // Initial size can be arbitrary; adjust based on expected usage */
+    
+/*     if (buffer->content == NULL || buffer->name == NULL || buffer->path == NULL || buffer->syntaxArray.items == NULL) { */
+/*         fprintf(stderr, "Failed to allocate memory for buffer components.\n"); */
+/*         exit(EXIT_FAILURE); */
+/*     } else { */
+/*         buffer->content[0] = '\0';  // Initialize content as empty string */
+/*     } */
+/* } */
+
+
+/* void initBuffer(Buffer *buffer, const char *name, const char *path) { */
+/*     buffer->capacity = 1024;  // Initial capacity */
+/*     buffer->content = malloc(buffer->capacity); */
+/*     buffer->size = 0; */
+/*     buffer->point = 0; */
+/*     buffer->readOnly = false; */
+/*     buffer->name = strdup(name);  // Duplicate the name for ownership */
+/*     buffer->path = strdup(path);  // Duplicate the path for ownership */
+/*     buffer->region.active = false; */
+/*     buffer->scale.index = 0; */
+    
+/*     if (buffer->content == NULL || buffer->name == NULL || buffer->path == NULL) { */
+/*         fprintf(stderr, "Failed to allocate memory for buffer.\n"); */
+/*         exit(EXIT_FAILURE); */
+/*     } else { */
+/*         buffer->content[0] = '\0';  // Initialize content as empty string */
+/*     } */
+/* } */
 
 void newBuffer(BufferManager *manager, WindowManager *wm,
                const char *name, const char *path, char *fontname,

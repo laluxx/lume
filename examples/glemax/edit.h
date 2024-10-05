@@ -76,5 +76,9 @@ void forward_list(Buffer *buffer, int arg);
 void backward_list(Buffer *buffer, int arg);
 void moveTo(Buffer *buffer, int ln, int col);
 void delete_blank_lines(Buffer *buffer, int arg);
+void save_buffer(BufferManager *bm, Buffer *buffer);
+
+void execute_shell_command(BufferManager *bm, char *command);
+void shell_command(BufferManager *bm);
 
 #endif

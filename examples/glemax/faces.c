@@ -10,6 +10,7 @@ int fontincrement = 2.0; // NOTE not used yes use it to have precise control ove
 int fontsize = 15;
 int minifontsize = 15;
 char *fontname = "jetb.ttf";
+/* char *fontname = "fira.ttf"; */
 Font *globalFontCache[MAX_FONT_SCALE_INDEX] = {NULL};
 
 void initScale(Scale *scale) {
@@ -37,14 +38,17 @@ Font* updateFont(Scale *scale, int newIndex, char *fontname) {
 
 
 
-// TODO use the win->height instead of the sh
-void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh) {
+void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg) {
     Scale *scale = &buffer->scale;
-    int nextIndex = scale->index + 1;
-    if (nextIndex <= SCALE_ZERO_INDEX + MAX_FONT_SCALE) {
+    int nextIndex = scale->index + arg;
+    if (arg == 0) {
+        nextIndex = SCALE_ZERO_INDEX; // Reset to default scale if arg is 0
+    }
+
+    if (nextIndex >= SCALE_ZERO_INDEX + MIN_FONT_SCALE && nextIndex <= SCALE_ZERO_INDEX + MAX_FONT_SCALE) {
         Font *oldFont = buffer->font;  // Keep the old font to calculate the height difference
         buffer->font = updateFont(scale, nextIndex, fontname);
-        
+
         // Adjust y position and height of all windows showing the same buffer
         Window *win = wm->head;
         while (win) {
@@ -59,11 +63,14 @@ void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh)
     }
 }
 
-// TODO use the win->height instead of the sh
-void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh) {
+void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg) {
     Scale *scale = &buffer->scale;
-    int nextIndex = scale->index - 1;
-    if (nextIndex >= SCALE_ZERO_INDEX + MIN_FONT_SCALE) {
+    int nextIndex = scale->index - arg;
+    if (arg == 0) {
+        nextIndex = SCALE_ZERO_INDEX; // Reset to default scale if arg is 0
+    }
+
+    if (nextIndex >= SCALE_ZERO_INDEX + MIN_FONT_SCALE && nextIndex <= SCALE_ZERO_INDEX + MAX_FONT_SCALE) {
         Font *oldFont = buffer->font;  // Keep the old font to calculate the height difference
         buffer->font = updateFont(scale, nextIndex, fontname);
         
@@ -85,4 +92,61 @@ void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh)
         }
     }
 }
+
+
+
+
+
+
+
+
+
+// TODO use the win->height instead of the sh
+/* void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg) { */
+/*     Scale *scale = &buffer->scale; */
+/*     int nextIndex = scale->index + 1; */
+/*     if (nextIndex <= SCALE_ZERO_INDEX + MAX_FONT_SCALE) { */
+/*         Font *oldFont = buffer->font;  // Keep the old font to calculate the height difference */
+/*         buffer->font = updateFont(scale, nextIndex, fontname); */
+        
+/*         // Adjust y position and height of all windows showing the same buffer */
+/*         Window *win = wm->head; */
+/*         while (win) { */
+/*             if (win->buffer == buffer) { */
+/*                 int oldY = win->y;  // Store old y position */
+/*                 win->y = sh - buffer->font->ascent + buffer->font->descent;  // Update the y position for the new font size */
+/*                 int deltaY = oldY - win->y;  // Calculate how much y has moved */
+/*                 win->height -= deltaY;  // Adjust height to keep the bottom boundary fixed */
+/*             } */
+/*             win = win->next; */
+/*         } */
+/*     } */
+/* } */
+
+/* // TODO use the win->height instead of the sh */
+/* void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh) { */
+/*     Scale *scale = &buffer->scale; */
+/*     int nextIndex = scale->index - 1; */
+/*     if (nextIndex >= SCALE_ZERO_INDEX + MIN_FONT_SCALE) { */
+/*         Font *oldFont = buffer->font;  // Keep the old font to calculate the height difference */
+/*         buffer->font = updateFont(scale, nextIndex, fontname); */
+        
+/*         // Adjust y position and height of all windows showing the same buffer */
+/*         Window *win = wm->head; */
+/*         while (win) { */
+/*             if (win->buffer == buffer) { */
+/*                 int oldY = win->y;  // Store old y position */
+/*                 win->y = sh - buffer->font->ascent + buffer->font->descent;  // Update the y position for the new font size */
+/*                 int deltaY = win->y - oldY;  // Calculate how much y has moved */
+/*                 win->height += deltaY;  // Adjust height to compensate the y movement to keep the bottom boundary fixed */
+
+/*                 // This line ensures the modeline does not move by correcting any discrepancies */
+/*                 if (deltaY < 0) { */
+/*                     win->height -= deltaY;  // Decrease height further if deltaY was negative (y moved down) */
+/*                 } */
+/*             } */
+/*             win = win->next; */
+/*         } */
+/*     } */
+/* } */
 

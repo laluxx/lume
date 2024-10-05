@@ -13,7 +13,8 @@ typedef struct {
     bool wrap;
 } ISearch;
 
-void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex, ISearch *is);
+/* void isearch_forward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex, ISearch *is); */
+void isearch_forward(Buffer *buffer, BufferManager *bm, Buffer *minibuffer, bool updateStartIndex, ISearch *is);
 void isearch_backward(Buffer *buffer, Buffer *minibuffer, bool updateStartIndex, ISearch *is);
 
 #endif

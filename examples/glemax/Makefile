@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -I/usr/include/freetype2 -I.
-LIBS = -llume
+LIBS = -llume -ltree-sitter -ltree-sitter-c -lm
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 

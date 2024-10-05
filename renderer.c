@@ -313,7 +313,6 @@ void drawTriangle(Color color,
     drawVertex(p3, color, uv3);
 }
 
-// TODO drawQuad() where you specify the UV's quads are used for textures
 void drawRectangle(Vec2f position, Vec2f size, Color color) {
     Vec2f p1 = {position.x, position.y};
     Vec2f p2 = {position.x + size.x, position.y};
@@ -328,6 +327,44 @@ void drawRectangle(Vec2f position, Vec2f size, Color color) {
     drawTriangleEx(p1, color, uv1, p3, color, uv3, p2, color, uv2);
     drawTriangleEx(p2, color, uv2, p3, color, uv3, p4, color, uv4);
 }
+
+
+void drawRectangleLines(Vec2f position, Vec2f size, Color color, float lineThickness) {
+    drawRectangle((Vec2f){position.x, position.y}, 
+                  (Vec2f){size.x, lineThickness}, 
+                  color);
+
+    drawRectangle((Vec2f){position.x, position.y + size.y - lineThickness},
+                  (Vec2f){size.x, lineThickness},
+                  color);
+
+    drawRectangle((Vec2f){position.x, position.y},
+                  (Vec2f){lineThickness, size.y},
+                  color);
+
+    drawRectangle((Vec2f){position.x + size.x - lineThickness, position.y},
+                  (Vec2f){lineThickness, size.y},
+                  color);
+}
+
+void drawLine(Vec2f start, Vec2f end, Color color, float thickness) {
+    Vec2f position, size;
+
+    if (start.y == end.y) { // Horizontal line
+        position = (Vec2f){fminf(start.x, end.x), start.y - thickness / 2};
+        size = (Vec2f){fabsf(end.x - start.x), thickness};
+    } else if (start.x == end.x) { // Vertical line
+        position = (Vec2f){start.x - thickness / 2, fminf(start.y, end.y)};
+        size = (Vec2f){thickness, fabsf(end.y - start.y)};
+    } else {
+        fprintf(stderr, "drawLine only supports strictly horizontal or vertical lines.\n");
+        return;
+    }
+
+    drawRectangle(position, size, color);
+}
+
+
 
 void updateProjectionMatrix(int width, int height) {
     float near = -1.0f;

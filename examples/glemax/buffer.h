@@ -1,13 +1,27 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
+#include <tree_sitter/api.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include "font.h"
 
+
 typedef struct {
-    int index;         // Current index for the font size
-    int fontSizes[36]; // Font sizes from scale -8 to +27
+    size_t start;
+    size_t end;
+    Color color;
+} Syntax;
+
+typedef struct {
+    Syntax *items;
+    size_t used;
+    size_t size;
+} SyntaxArray;
+
+typedef struct {
+    int index;
+    int fontSizes[36]; // NOTE from -8 to +27
 } Scale;
 
 typedef struct {
@@ -29,6 +43,8 @@ typedef struct {
     Region region;   // NOTE Each buffer has its region
     Scale scale;     // Scale struct for managing font sizes
     Font *font;      // NOTE Each buffer has its fonts
+    TSTree *tree;    // Tree sitter tree
+    SyntaxArray syntaxArray; // Array of syntax highlighting ranges
 } Buffer;
 
 typedef struct {
@@ -46,10 +62,12 @@ typedef enum {
 } SplitOrientation;
 
 typedef struct Window {
-    float x;             // X position
-    float y;             // Y position
-    float width;         // Width of the window
-    float height;        // Height of the window
+    float x;              // X position
+    float y;              // Y position
+    float width;          // Width of the window
+    float height;         // Height of the window
+    float modelineHeight; // Height of the modeline
+    Vec2f scroll;
     Buffer *buffer;      // Buffer displayed in this window
     /* struct Window *parent;   // NOTE This could be implemented later on.. */
     struct Window *prev; // Previous window in the list

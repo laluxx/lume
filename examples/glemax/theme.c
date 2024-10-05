@@ -24,6 +24,18 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#4d9391"),
         .message = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
+
+        .comment = hexToColor("#545c5e"),
+        .null = hexToColor("#ab98b5"),
+        .negation = hexToColor("#cd5c60"),
     };
 
     themes[1] = (Theme){
@@ -38,6 +50,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#9587DD"),
         .region = hexToColor("#272C3A"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
 
     themes[2] = (Theme){
@@ -52,6 +72,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#738FD7"),
         .region = hexToColor("#2E403B"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
 
     themes[3] = (Theme){
@@ -66,6 +94,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
 
     themes[4] = (Theme){
@@ -80,6 +116,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
   
     themes[5] = (Theme){
@@ -94,6 +138,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
 
     themes[6] = (Theme){
@@ -108,6 +160,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
 
     themes[7] = (Theme){
@@ -122,6 +182,14 @@ void initThemes() {
         .minibuffer_prompt = hexToColor("#4d9391"),
         .region = hexToColor("#2E403B"),
         .message = hexToColor("#4d9391"),
+        .type = hexToColor("#cd9575"),
+        .string = hexToColor("#6FB593"),
+        .number = hexToColor("#e4e4e8"),
+        .function = hexToColor("#80bcb6"),
+        .preprocessor = hexToColor("#9d81ba"),
+        .operator = hexToColor("#e4e4e8"),
+        .variable = hexToColor("#968cc7"),
+        .keyword = hexToColor("#4d9391"),
     };
 }
 

@@ -16,6 +16,18 @@ typedef struct {
     Color minibuffer_prompt;
     Color region;
     Color message;
+    
+    Color type;
+    Color string;
+    Color number;
+    Color function;
+    Color preprocessor;
+    Color operator;
+    Color variable;
+    Color keyword;
+    Color comment;
+    Color null;
+    Color negation;
 } Theme;
 
 extern Theme themes[];

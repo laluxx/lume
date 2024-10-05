@@ -7,6 +7,11 @@
 static int keys[MAX_KEYS];
 static int keysPressed[MAX_KEYS];
 
+#define MAX_MOUSE_BUTTONS 8
+static int mouseButtons[MAX_MOUSE_BUTTONS];
+static int mouseButtonsPressed[MAX_MOUSE_BUTTONS];
+static int mouseButtonsReleased[MAX_MOUSE_BUTTONS];
+
 #define MAX_GAMEPAD_BUTTONS 15
 #define MAX_GAMEPAD_AXES 6
 static int gamepadButtons[MAX_GAMEPAD_BUTTONS];
@@ -15,10 +20,36 @@ static float gamepadAxes[MAX_GAMEPAD_AXES];
 
 bool printKeyInfo = true;
 
+static Vec2f lastMousePosition = {0.0, 0.0};
+static Vec2f currentMousePosition = {0.0, 0.0};
+
 void initInput() {
     for (int i = 0; i < MAX_KEYS; i++) {
         keys[i] = 0;
         keysPressed[i] = 0;
+        /* keysReleased[i] = 0; */ // TODO
+    }
+    for (int i = 0; i < MAX_MOUSE_BUTTONS; i++) {
+        mouseButtons[i] = 0;
+        mouseButtonsPressed[i] = 0;
+        mouseButtonsReleased[i] = 0;
+    }
+}
+
+static void updateMouseButtons() {
+    GLFWwindow* window = getCurrentContext();
+    for (int i = 0; i < MAX_MOUSE_BUTTONS; i++) {
+        int newState = glfwGetMouseButton(window, i);
+        if (newState == GLFW_PRESS && mouseButtons[i] == 0) {
+            mouseButtonsPressed[i] = 1;
+            mouseButtons[i] = 1;
+        } else if (newState == GLFW_RELEASE && mouseButtons[i] == 1) {
+            mouseButtonsReleased[i] = 1;
+            mouseButtons[i] = 0;
+        } else {
+            mouseButtonsPressed[i] = 0;
+            mouseButtonsReleased[i] = 0;
+        }
     }
 }
 
@@ -44,14 +75,72 @@ static void gamepadUpdate() {
     }
 }
 
+
 void updateInput() {
+     glfwGetCursorPos(getCurrentContext(), &currentMousePosition.x, &currentMousePosition.y);
+
+    // Reset states
     for (int i = 0; i < MAX_KEYS; i++) {
-        keysPressed[i] = 0;  // Reset only the pressed state for keys
+        keysPressed[i] = 0;
+    }
+    for (int i = 0; i < MAX_MOUSE_BUTTONS; i++) {
+        mouseButtonsPressed[i] = 0;
+        mouseButtonsReleased[i] = 0;
     }
     for (int i = 0; i < MAX_GAMEPAD_BUTTONS; i++) {
-        gamepadButtonsPressed[i] = 0;  // Reset only the pressed state for gamepad buttons
+        gamepadButtonsPressed[i] = 0;
     }
-    gamepadUpdate();  // Update gamepad state
+
+    updateMouseButtons();
+    gamepadUpdate();
+}
+
+/* void updateInput() { */
+/*     for (int i = 0; i < MAX_KEYS; i++) { */
+/*         keysPressed[i] = 0; */
+/*     } */
+
+/*     for (int i = 0; i < MAX_MOUSE_BUTTONS; i++) { */
+/*         mouseButtonsPressed[i] = 0; */
+/*         mouseButtonsReleased[i] = 0; */
+/*     } */
+
+/*     for (int i = 0; i < MAX_GAMEPAD_BUTTONS; i++) { */
+/*         gamepadButtonsPressed[i] = 0; */
+/*     } */
+
+/*     updateMouseButtons(); */
+/*     gamepadUpdate(); */
+/* } */
+
+
+
+int isKeyDown(int key) {
+    if (key < 0 || key >= MAX_KEYS)
+        return 0;
+    return keys[key];
+}
+
+int isKeyPressed(int key) {
+    if (key < 0 || key >= MAX_KEYS)
+        return 0;
+    return keysPressed[key];
+}
+
+
+int isMouseButtonPressed(int button) {
+    if (button < 0 || button >= MAX_MOUSE_BUTTONS) return 0;
+    return mouseButtonsPressed[button];
+}
+
+int isMouseButtonReleased(int button) {
+    if (button < 0 || button >= MAX_MOUSE_BUTTONS) return 0;
+    return mouseButtonsReleased[button];
+}
+
+int isMouseButtonDown(int button) {
+    if (button < 0 || button >= MAX_MOUSE_BUTTONS) return 0;
+    return mouseButtons[button];
 }
 
 
@@ -68,32 +157,54 @@ int isGamepadButtonDown(int button) {
 }
 
 
-int isKeyDown(int key) {
-    if (key < 0 || key >= MAX_KEYS)
-        return 0;
-    return keys[key];
+
+GLFWwindow* getCurrentContext() {
+    return glfwGetCurrentContext();
 }
 
-int isKeyPressed(int key) {
-    if (key < 0 || key >= MAX_KEYS)
-        return 0;
-    return keysPressed[key];
+void getCursorPosition(double* x, double* y) {
+    GLFWwindow* window = getCurrentContext();
+    if (window != NULL) {
+        glfwGetCursorPos(window, x, y);
+        int windowHeight;
+        glfwGetWindowSize(window, NULL, &windowHeight);
+        *y = windowHeight - *y; // NOTE Invert the y-coordinate
+    } else {
+        *x = 0.0;
+        *y = 0.0;
+    }
 }
 
-// Global variable to store the text input callback
-TextInputCallback currentTextInputCallback = NULL;
 
-void registerTextInputCallback(TextInputCallback callback) {
-    currentTextInputCallback = callback;
+Vec2f getMouseDelta() {
+    Vec2f mouseDelta = {
+        currentMousePosition.x - lastMousePosition.x,
+        currentMousePosition.y - lastMousePosition.y
+    };
+
+    lastMousePosition = currentMousePosition;
+    return mouseDelta;
 }
 
 
-// Global variable to store the key input callback
-KeyInputCallback currentKeyInputCallback = NULL;
-
-void registerKeyInputCallback(KeyInputCallback callback) {
-    currentKeyInputCallback = callback;
+TextCallback currentTextCallback = NULL;
+void registerTextCallback(TextCallback callback) {
+    currentTextCallback = callback;
 }
 
+KeyInputCallback currentKeyCallback = NULL;
+void registerKeyCallback(KeyInputCallback callback) {
+    currentKeyCallback = callback;
+}
+
+MouseButtonCallback currentMouseButtonCallback = NULL;
+void registerMouseButtonCallback(MouseButtonCallback callback) {
+    currentMouseButtonCallback = callback;
+}
+
+CursorPosCallback currentCursorPosCallback = NULL;
+void registerCursorPosCallback(CursorPosCallback callback) {
+    currentCursorPosCallback = callback;
+}
 
 

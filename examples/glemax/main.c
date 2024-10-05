@@ -11,8 +11,16 @@
 #include "faces.h"
 #include "keychords.h"
 #include "history.h"
+#include "syntax.h"
 
-// TODO implement a face system using drawChar(); and implement C syntax highligt using it
+// TODO IMPORTANT drawHighlight shoudl consider the scroll now
+// TODO streamline the drawRegion function possibly using drawHighlight to unify things
+// TODO we should add a Modeline struct to each window
+// TODO we should add cursor struct to each window
+// TODO we should add scrollbar struct to each window
+// TODO we should add 2 fringes to each window
+// TODO the point should be per window not per buffer
+
 // TODO mark for each Buffer
 
 // FIXME most functions that take the "Font *font" shoudl take only the wm now
@@ -31,15 +39,10 @@
 // Do this when we implement the minibuffer as a window
 // NOTE I-searrch for "if (isCurrentBuffer(&bm, "minibuffer")"
 
-// TODO IMPORTANT be able to message() and turn false ctrl_x_pressed in the key
-// TODO isearch-backward and color unmatched characters
-// TODO syntax highlighting
+// TODO color unmatched characters in isearch and fix is behaviour like pressing backspaces etc..
 // TODO unhardcode the keybinds
 // TODO check if the lastmatchindex changes and stop search (like for moving)
-// TODO Multiline in the minibufferHeight
-// TODO save-buffer
 // TODO M-x
-// TODO modeline
 // TODO undo system
 
 // TODO ) inside () shoudl jumpt to the closing one not move right once
@@ -56,7 +59,6 @@ KillRing kr = {0};
 WindowManager wm = {0};
 NamedHistories nh = {0};
 
-
 bool electric_pair_mode = true; // TODO Wrap selection for () [] {} '' ""
 bool blink_cursor_mode = true;
 float blink_cursor_delay = 0.5; // Seconds of idle time before the first blink of the cursor.
@@ -69,18 +71,20 @@ int kill_ring_max = 120; // Maximum length of kill ring before oldest elements a
 bool draw_region_on_empty_lines = true;
 bool electric_indent_mode = true;
 bool rainbow_mode = true;
+bool crystal_cursor_mode = true; // Make the cursor crystal clear
 
 
 void drawMiniCursor(Buffer *buffer, Font *font, float x, float y, Color color);
-void drawCursor(Buffer *buffer, Font *font, Window *win, Color color);
+void drawCursor(Buffer *buffer, Window *win, Color defaultColor);
 void drawHighlight(WindowManager *wm, Font *font, size_t startPos, size_t length, Color highlightColor);
 void highlightMatchingBrackets(WindowManager *wm, Font *font, Color highlightColor);
 void highlightAllOccurrences(WindowManager *wm, const char *searchText, Font *font, Color highlightColor);
 void drawRegion(WindowManager *wm, Font *font, Color regionColor);
-void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float modelineHeight, Color color);
-void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible);
+void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, Color color);
+void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible, bool colorPoint);
 void highlightHexColors(WindowManager *wm, Font *font, Buffer *buffer, bool rm);
 int getGlobalArg(Buffer *argBuffer);
+void handleScroll(Window *window);
 
 void keyInputHandler(int key, int action, int mods);
 void textInputHandler(unsigned int codepoint);
@@ -88,35 +92,37 @@ void insertUnicodeCharacter(Buffer * buffer, unsigned int codepoint, int arg);
 int encodeUTF8(char *out, unsigned int codepoint);
 
 
-
 static double lastBlinkTime = 0.0;  // Last time the cursor state changed
 static bool cursorVisible = true;  // Initial state of the cursor visibility
 static int blinkCount = 0;  // Counter for number of blinks
 
-void drawCursor(Buffer *buffer, Font *font, Window *win, Color color) {
-    int lineCount = 0;
+// TODO it shoudl take the wm not the win so we cal use it in the key callback
+void drawCursor(Buffer *buffer, Window *win, Color defaultColor) {
     float cursorX = win->x;
+    float cursorY = win->y;
+    int lineCount = 0;
 
     // Calculate the cursor's x offset within the content of the buffer
     for (size_t i = 0; i < buffer->point; i++) {
         if (buffer->content[i] == '\n') {
-            lineCount++;
+            lineCount++;  // Increment line count at each newline
             cursorX = win->x;  // Reset cursor x to the start of the window on new lines
         } else {
-            cursorX += getCharacterWidth(font, buffer->content[i]);
+            cursorX += getCharacterWidth(buffer->font, buffer->content[i]);  // Move cursor right by character width
         }
     }
 
-    // Determine cursor width, handling newline or end of buffer cases
-    float cursorWidth = buffer->point < buffer->size && buffer->content[buffer->point] != '\n'
-        ? getCharacterWidth(font, buffer->content[buffer->point])
-        : getCharacterWidth(font, ' ');
+    // Determine cursor width, handle newline or end of buffer cases
+    float cursorWidth = (buffer->point < buffer->size && buffer->content[buffer->point] != '\n') ?
+        getCharacterWidth(buffer->font, buffer->content[buffer->point]) :
+        getCharacterWidth(buffer->font, ' ');  // Use a standard width if at the end of a line or buffer
 
-    // Compute cursor's y position based on the number of lines and the window's y offset
-    float cursorY = win->y - lineCount * (font->ascent + font->descent) - font->descent*2;
+    // Compute cursor's y position based on the number of lines, subtract from initial y and add the scroll
+    cursorY += win->scroll.y - lineCount * (buffer->font->ascent + buffer->font->descent) - (buffer->font->descent * 2);
 
+    // Create a rectangle representing the cursor
     Vec2f cursorPosition = {cursorX, cursorY};
-    Vec2f cursorSize = {cursorWidth, font->ascent + font->descent};
+    Vec2f cursorSize = {cursorWidth, buffer->font->ascent + buffer->font->descent};
 
     // Handle cursor blinking logic
     if (blink_cursor_mode && blinkCount < blink_cursor_blinks) {
@@ -130,12 +136,77 @@ void drawCursor(Buffer *buffer, Font *font, Window *win, Color color) {
         }
 
         if (cursorVisible) {
-            drawRectangle(cursorPosition, cursorSize, color);
+            Color cursorColor = defaultColor;
+            if (crystal_cursor_mode) {
+                for (size_t i = 0; i < buffer->syntaxArray.used; i++) {
+                    if (buffer->point >= buffer->syntaxArray.items[i].start && buffer->point < buffer->syntaxArray.items[i].end) {
+                        cursorColor = buffer->syntaxArray.items[i].color;
+                        break;
+                    }
+                }
+            }
+            drawRectangle(cursorPosition, cursorSize, cursorColor);  // Draw the cursor if visible
         }
     } else {
-        drawRectangle(cursorPosition, cursorSize, color);  // Always draw cursor if not blinking
+        drawRectangle(cursorPosition, cursorSize, defaultColor);  // Always draw cursor if not blinking
     }
 }
+
+
+
+// NOTE ORIGINAL
+/* void drawCursor(Buffer *buffer, Font *font, Window *win, Color defaultColor) { */
+/*     int lineCount = 0; */
+/*     float cursorX = win->x; */
+
+/*     // Calculate the cursor's x offset within the content of the buffer */
+/*     for (size_t i = 0; i < buffer->point; i++) { */
+/*         if (buffer->content[i] == '\n') { */
+/*             lineCount++; */
+/*             cursorX = win->x;  // Reset cursor x to the start of the window on new lines */
+/*         } else { */
+/*             cursorX += getCharacterWidth(font, buffer->content[i]); */
+/*         } */
+/*     } */
+
+/*     // Determine cursor width, handling newline or end of buffer cases */
+/*     float cursorWidth = (buffer->point < buffer->size && buffer->content[buffer->point] != '\n') ? */
+/*         getCharacterWidth(font, buffer->content[buffer->point]) : */
+/*         getCharacterWidth(font, ' '); */
+
+/*     // Compute cursor's y position based on the number of lines and the window's y offset */
+/*     float cursorY = win->y - lineCount * (font->ascent + font->descent) - font->descent*2; */
+
+/*     Vec2f cursorPosition = {cursorX, cursorY}; */
+/*     Vec2f cursorSize = {cursorWidth, font->ascent + font->descent}; */
+
+/*     // Handle cursor blinking logic */
+/*     if (blink_cursor_mode && blinkCount < blink_cursor_blinks) { */
+/*         double currentTime = getTime(); */
+/*         if (currentTime - lastBlinkTime >= (cursorVisible ? blink_cursor_interval : blink_cursor_delay)) { */
+/*             cursorVisible = !cursorVisible; */
+/*             lastBlinkTime = currentTime; */
+/*             if (cursorVisible) { */
+/*                 blinkCount++; */
+/*             } */
+/*         } */
+
+/*         if (cursorVisible) { */
+/*             Color cursorColor = defaultColor; */
+/*             if (crystal_cursor_mode) { */
+/*                 for (size_t i = 0; i < buffer->syntaxArray.used; i++) { */
+/*                     if (buffer->point >= buffer->syntaxArray.items[i].start && buffer->point < buffer->syntaxArray.items[i].end) { */
+/*                         cursorColor = buffer->syntaxArray.items[i].color; */
+/*                         break; */
+/*                     } */
+/*                 } */
+/*             } */
+/*             drawRectangle(cursorPosition, cursorSize, cursorColor); */
+/*         } */
+/*     } else { */
+/*         drawRectangle(cursorPosition, cursorSize, defaultColor);  // Always draw cursor if not blinking */
+/*     } */
+/* } */
 
 
 // TODO once we support the minibuffer as a window remove this function
@@ -184,12 +255,12 @@ int sh = 1080;
 int main() {
     initThemes();
     initWindow(sw, sh, "*scratch* - Glemax");
-    registerTextInputCallback(textInputHandler);
-    registerKeyInputCallback(keyInputHandler);
+    registerTextCallback(textInputHandler);
+    registerKeyCallback(keyInputHandler);
     
     font = loadFont(fontname, fontsize);
-    minifont = loadFont(fontname, minifontsize);
 
+    initGlobalParser();
     initKillRing(&kr, kill_ring_max);
     initBufferManager(&bm);
     newBuffer(&bm, &wm, "minibuffer", "~/", fontname, sw, sh);
@@ -204,15 +275,14 @@ int main() {
 
     initWindowManager(&wm, &bm, font, sw, sh);
 
-
     /* updateWindows(&wm, font, sw, sh); */
-
+    
     while (!windowShouldClose()) {
         sw = getScreenWidth();
         sh = getScreenHeight();
         
         /* updateWindows(&wm, font, sw, sh); */
-        reloadShaders();
+        /* reloadShaders(); */
         Buffer *prompt = getBuffer(&bm, "prompt");
         Buffer *minibuffer = getBuffer(&bm, "minibuffer");
         Buffer *message = getBuffer(&bm, "message");
@@ -224,6 +294,9 @@ int main() {
         /* Buffer *currentBuffer = getActiveBuffer(&bm); */
 
 
+        /* parseSyntax(currentBuffer); */
+        /* displaySyntax(currentBuffer); */
+        
         beginDrawing();
         clearBackground(CT.bg);
 
@@ -232,28 +305,37 @@ int main() {
         drawFPS(font, 400.0, 400.0, RED);
 
         float promptWidth = 0;
-
         for (size_t i = 0; i < strlen(prompt->content); i++) {
-            promptWidth += getCharacterWidth(minifont, prompt->content[i]);
+            promptWidth += getCharacterWidth(minibuffer->font, prompt->content[i]);
         }
 
+
+        int lineCount = 1; // Start with 1 to account for content without any newlines
+        for (int i = 0; i < strlen(minibuffer->content); i++) {
+            if (minibuffer->content[i] == '\n') {
+                lineCount++;
+            }
+        }
+
+        float lineHeight = (minibuffer->font->ascent + minibuffer->font->descent);
+
+        // Set the height based on the number of lines found
+        float minibufferHeight = lineHeight * lineCount;
+
+
         // PROMPT TEXT
-        drawTextEx(minifont, prompt->content,
-                   0, minifont->ascent - minifont->descent * 1.3,
+        drawTextEx(minibuffer->font, prompt->content,
+                   0, minibufferHeight - (minibuffer->font->ascent - minibuffer->font->descent),
                    1.0, 1.0, CT.minibuffer_prompt, CT.bg, -1, cursorVisible,
                    "text");
-
-        // MODELINE
-        float minibufferHeight = minifont->ascent + minifont->descent;
-        float modelineHeight = 25.0;
 
 
         // TODO the cursor should be within the scissors
         useShader("simple");
         if (isCurrentBuffer(&bm, "minibuffer")) {
-            drawMiniCursor(minibuffer, minifont, promptWidth, 0 + minifont->descent, CT.cursor);
+            drawMiniCursor(minibuffer, minibuffer->font, promptWidth, minibufferHeight - minibuffer->font->ascent, CT.cursor);
         } else {
-            drawCursor(currentBuffer, currentBuffer->font, wm.activeWindow, CT.cursor);
+            drawCursor(currentBuffer, wm.activeWindow, CT.cursor);
         }
         flush();
 
@@ -264,13 +346,13 @@ int main() {
         for (; win != NULL; win = win->next) {
             Buffer *buffer = win->buffer;
             bool bottom = isBottomWindow(&wm, win);
-            float scissorStartY = win->y - win->height + minibufferHeight + modelineHeight;
+            float scissorStartY = win->y - win->height + minibufferHeight + win->modelineHeight;
             float scissorHeight = sh - scissorStartY;
             if (bottom) {
                 scissorHeight += minibufferHeight;
             }
 
-            drawModeline(&wm, minifont, minibufferHeight, modelineHeight, CT.modeline);
+            drawModeline(&wm, minibuffer->font, minibufferHeight, CT.modeline);
 
 
             beginScissorMode((Vec2f){win->x, scissorStartY}, (Vec2f){win->width, scissorHeight});
@@ -284,18 +366,15 @@ int main() {
                 if (isearch.searching) highlightAllOccurrences(&wm, minibuffer->content, font, CT.isearch_highlight);
                 flush();
 
-                /* drawTextEx(buffer->font, buffer->content, */
-                /*            win->x, win->y, */
-                /*            1.0, 1.0, CT.text, CT.bg, */
-                /*            buffer->point, cursorVisible, */
-                /*            "text"); */
-                drawBuffer(win, buffer, cursorVisible);
+                if (isCurrentBuffer(&bm, "minibuffer")) {
+                    drawBuffer(win, buffer, cursorVisible, false);                    
+                } else {
+                    drawBuffer(win, buffer, cursorVisible, true);                    
+                }
+                handleScroll(win);
+
             } else {
-                drawTextEx(buffer->font, buffer->content,
-                           win->x, win->y,
-                           1.0, 1.0, CT.text, CT.bg,
-                           -1, cursorVisible,
-                           "text");
+                drawBuffer(win, buffer, cursorVisible, false);
             }
             endScissorMode();
         }
@@ -304,30 +383,34 @@ int main() {
         float minibufferWidth = promptWidth;
 
         for (size_t i = 0; i < strlen(minibuffer->content); i++) {
-            minibufferWidth += getCharacterWidth(minifont, minibuffer->content[i]);
+            minibufferWidth += getCharacterWidth(minibuffer->font, minibuffer->content[i]);
         }
 
         // MINIBUFFER TEXT
-        drawTextEx(minifont, minibuffer->content,
-                   promptWidth, minifont->ascent - minifont->descent * 1.3,
+        drawTextEx(minibuffer->font, minibuffer->content,
+                   promptWidth, minibufferHeight - (minibuffer->font->ascent - minibuffer->font->descent),
                    1.0, 1.0, CT.text, CT.bg, minibuffer->point, cursorVisible,
                    "text");
 
         // MESSAGE TEXT
-        drawTextEx(minifont, message->content,
-                   minibufferWidth + getCharacterWidth(minifont, 32), minifont->ascent - minifont->descent * 1.3,
+        float lastLineWidth = getCharacterWidth(minibuffer->font, 32);
+        size_t lastLineStart = strrchr(minibuffer->content, '\n') ? strrchr(minibuffer->content, '\n') - minibuffer->content + 1 : 0;
+        for (size_t i = lastLineStart; i < strlen(minibuffer->content); i++) {
+            lastLineWidth += getCharacterWidth(minibuffer->font, minibuffer->content[i]);
+        }
+
+        float lastLineY = minibufferHeight - (lineHeight * lineCount) + getCharacterWidth(minibuffer->font, 32);
+        drawTextEx(minibuffer->font, message->content,
+                   promptWidth + lastLineWidth, lastLineY,
                    1.0, 1.0, CT.message, CT.bg, message->point, cursorVisible,
                    "text");
-
-
         
 
         endDrawing();
     }
 
-
+    freeGlobalParser();
     freeFont(font);
-    freeFont(minifont);
     freeKillRing(&kr);
     freeBufferManager(&bm);
     freeWindowManager(&wm);
@@ -369,7 +452,7 @@ void keyInputHandler(int key, int action, int mods) {
         }
         cleanBuffer(&bm, "message");
         
-        if (ctrl_x_pressed && key != KEY_X && key != KEY_F && key != KEY_O) {
+        if (ctrl_x_pressed && key != KEY_X && key != KEY_F && key != KEY_O && key != KEY_S) {
             ctrl_x_pressed = false;
         }
 
@@ -387,7 +470,7 @@ void keyInputHandler(int key, int action, int mods) {
                     backspace(minibuffer, electric_pair_mode);
                 }
                 if (minibuffer->size > 0) {
-                    isearch_forward(buffer, minibuffer, false, &isearch);
+                    isearch_forward(buffer, &bm, minibuffer, false, &isearch);
                 } else {
                     // If the minibuffer is empty, move the cursor back to where the search started
                     buffer->point = isearch.startIndex;
@@ -426,8 +509,10 @@ void keyInputHandler(int key, int action, int mods) {
             if (ctrlPressed) yank(buffer, &kr, arg);
             break;
         case KEY_Z:
-            message(&bm, "HELLOW");
-            moveTo(buffer, 10, 300);
+            /* printfSyntaxTree() */
+            /* message(&bm, "HELLOW"); */
+            /* moveTo(buffer, 10, 300); */
+            printSyntaxInfo(buffer);
             break;
 
         case KEY_X:
@@ -462,7 +547,10 @@ void keyInputHandler(int key, int action, int mods) {
 
         case KEY_S:
             if (ctrlPressed) {
-                if (!isearch.searching) {
+                if (ctrl_x_pressed) {
+                    save_buffer(&bm, buffer);
+                    ctrl_x_pressed = false;
+                } else if (!isearch.searching) {
                     isearch.searching = true;
                     minibuffer->size = 0;
                     minibuffer->content[0] = '\0';
@@ -477,7 +565,7 @@ void keyInputHandler(int key, int action, int mods) {
                         minibuffer->point = minibuffer->size;
                     }
                     isearch.startIndex = buffer->point;  // Update to ensure search starts from next position
-                    isearch_forward(buffer, minibuffer, true, &isearch);  // Continue search from new start index
+                    isearch_forward(buffer, &bm, minibuffer, true, &isearch);  // Continue search from new start index
                 }
             }
             break;
@@ -671,18 +759,30 @@ void keyInputHandler(int key, int action, int mods) {
             }
             break;
 
+        case KEY_1:
+            if (altPressed && shiftPressed) shell_command(&bm);
+            break;
+
         case KEY_EQUAL:
             if (altPressed) {
                 nextTheme();
             } else if (ctrlPressed) {
-                increaseFontSize(buffer, fontname, &wm, sh);
+                if (isCurrentBuffer(&bm, "minibuffer")) {
+                    increaseFontSize(minibuffer, fontname, &wm, sh, arg);                    
+                } else {
+                    increaseFontSize(buffer, fontname, &wm, sh, arg);                    
+                }
             }
             break;
         case KEY_MINUS:
             if (altPressed) {
                 previousTheme();
             } else if (ctrlPressed) {
-                decreaseFontSize(buffer, fontname, &wm, sh);
+                if (isCurrentBuffer(&bm, "minibuffer")) {
+                    decreaseFontSize(minibuffer, fontname, &wm, sh, arg);                    
+                } else {
+                    decreaseFontSize(buffer, fontname, &wm, sh, arg);
+                }
             }
             break;
 
@@ -781,7 +881,7 @@ void textInputHandler(unsigned int codepoint) {
                 if (strcmp(prompt->content, "I-search backward: ") == 0) {
                     isearch_backward(buffer, minibuffer, false, &isearch);  // Continue search backward
                 } else {
-                    isearch_forward(buffer, minibuffer, false, &isearch);
+                    isearch_forward(buffer, &bm, minibuffer, false, &isearch);
                 }
 
             }
@@ -1084,7 +1184,7 @@ void drawRegion(WindowManager *wm, Font *font, Color regionColor) {
 
 // TODO use isBottomWindow() for consistency
 // TODO draw the modeline text
-void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float modelineHeight, Color color) {
+void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, Color color) {
     for (Window *win = wm->head; win != NULL; win = win->next) {
         bool isBottom = true;  // Assume the window is at the bottom unless proven otherwise.
         for (Window *checkWin = wm->head; checkWin != NULL; checkWin = checkWin->next) {
@@ -1105,11 +1205,7 @@ void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float m
         useShader("simple");
         float width = win->splitOrientation == VERTICAL ? win->width - 1 : win->width;
         drawRectangle((Vec2f){win->x, modelineBaseY},
-                      (Vec2f){width, modelineHeight}, CT.modeline);
-
-        // MODELINE
-        // drawRectangle((Vec2f){win->x, modelineBaseY},
-        //               (Vec2f){10, modelineHeight}, RED);
+                      (Vec2f){width, win->modelineHeight}, CT.modeline);
 
         flush();
     }
@@ -1118,56 +1214,144 @@ void drawModeline(WindowManager *wm, Font *font, float minibufferHeight, float m
 
 // TODO add a name field to the FONT struct 
 
-void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible) {
+void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible, bool colorPoint) {
     Font *font = buffer->font;
     const char *text = buffer->content;
     float x = win->x;
-    float y = win->y;
-    float sx = 1.0;
-    float sy = 1.0;
-    int highlightPos = buffer->point;
-    float lineHeight = (font->ascent + font->descent) * sy;
+    // Start from the current vertical scroll position, moving content upwards as it increases
+    float y = win->y + win->scroll.y;  // Here, adding the scroll moves the initial line up
+    size_t index = 0;
+    size_t charIndex = 0;
     Color currentColor = CT.text;
-    char *currentShader = "text";
 
-    useShader(currentShader);
+    useShader("text");
 
-    for (int i = 0; text[i] != '\0'; i++) {
-        if (text[i] == '\n') {
-            x = win->x;
-            y -= lineHeight;
+    while (text[charIndex] != '\0') {
+        if (text[charIndex] == '\n') {
+            x = win->x;  // Reset to the start of the line
+            y -= (font->ascent + font->descent);  // Move up to the next line
+            charIndex++;
             continue;
         }
 
-        if (cursorVisible && i == highlightPos) {
-            if (currentShader != "text") {
-                flush();
-                useShader("text");
-                currentShader = "text";
-            }
+        if (cursorVisible && colorPoint && charIndex == buffer->point) {
             currentColor = CT.bg;
-        } else if (buffer->region.active && i >= buffer->region.start && i <= buffer->region.end - 1) {
-            if (currentShader != "wave") {
-                flush();
-                useShader("wave");
-                currentShader = "wave";
-            }
-            /* currentColor = RED; */
+        } else if (index < buffer->syntaxArray.used && charIndex >= buffer->syntaxArray.items[index].start &&
+                   charIndex < buffer->syntaxArray.items[index].end) {
+            currentColor = buffer->syntaxArray.items[index].color;  // Apply syntax coloring
         } else {
-            if (currentShader != "text") {
-                flush();
-                useShader("text");
-                currentShader = "text";
-            }
-            currentColor = CT.text;
+            currentColor = CT.text;  // Default text color
         }
 
-        drawChar(font, text[i], x, y, sx, sy, currentColor);
-        x += getCharacterWidth(font, text[i]) * sx;
+        drawChar(font, text[charIndex], x, y, 1.0, 1.0, currentColor);  // Draw each character
+
+        x += getCharacterWidth(font, text[charIndex]);  // Advance x position
+        charIndex++;  // Next character
+
+        // Update syntax index when moving past the end of a highlighted section
+        if (index < buffer->syntaxArray.used && charIndex == buffer->syntaxArray.items[index].end) {
+            index++;
+        }
     }
 
     flush();
 }
+
+
+/* void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible) { */
+/*     Font *font = buffer->font; */
+/*     const char *text = buffer->content; */
+/*     float x = win->x; */
+/*     float y = win->y; */
+/*     size_t index = 0; */
+/*     size_t charIndex = 0; */
+/*     Color currentColor = CT.text; */
+
+/*     useShader("text");  // Assume there's a single shader handling text rendering */
+
+/*     while (text[charIndex] != '\0') { */
+/*         if (text[charIndex] == '\n') { */
+/*             x = win->x; */
+/*             y -= (font->ascent + font->descent); */
+/*             charIndex++; */
+/*             continue; */
+/*         } */
+
+/*         // Adjust color based on syntax highlighting or cursor presence */
+/*         if (cursorVisible && charIndex == buffer->point) { */
+/*             currentColor = CT.bg; */
+/*         } else if (index < buffer->syntaxArray.used && charIndex >= buffer->syntaxArray.items[index].start && */
+/*                    charIndex < buffer->syntaxArray.items[index].end) { */
+/*             currentColor = buffer->syntaxArray.items[index].color; */
+/*         } else { */
+/*             currentColor = CT.text;  // Default text color */
+/*         } */
+
+/*         drawChar(font, text[charIndex], x, y, 1.0, 1.0, currentColor); */
+
+/*         x += getCharacterWidth(font, text[charIndex]); */
+/*         charIndex++; */
+
+/*         // Update index to next syntax item when applicable */
+/*         if (index < buffer->syntaxArray.used && charIndex == buffer->syntaxArray.items[index].end) { */
+/*             index++; */
+/*         } */
+/*     } */
+
+/*     flush();  // Ensure all drawn characters are rendered */
+/* } */
+
+
+/* void drawBuffer(Window *win, Buffer *buffer, bool cursorVisible) { */
+/*     Font *font = buffer->font; */
+/*     const char *text = buffer->content; */
+/*     float x = win->x; */
+/*     float y = win->y; */
+/*     float sx = 1.0; */
+/*     float sy = 1.0; */
+/*     int highlightPos = buffer->point; */
+/*     float lineHeight = (font->ascent + font->descent) * sy; */
+/*     Color currentColor = CT.text; */
+/*     char *currentShader = "text"; */
+
+/*     useShader(currentShader); */
+
+/*     for (int i = 0; text[i] != '\0'; i++) { */
+/*         if (text[i] == '\n') { */
+/*             x = win->x; */
+/*             y -= lineHeight; */
+/*             continue; */
+/*         } */
+
+/*         if (cursorVisible && i == highlightPos) { */
+/*             if (currentShader != "text") { */
+/*                 flush(); */
+/*                 useShader("text"); */
+/*                 currentShader = "text"; */
+/*             } */
+/*             currentColor = CT.bg; */
+/*         } else if (buffer->region.active && i >= buffer->region.start && i <= buffer->region.end - 1) { */
+/*             if (currentShader != "wave") { */
+/*                 flush(); */
+/*                 useShader("wave"); */
+/*                 currentShader = "wave"; */
+/*             } */
+/*             /\* currentColor = RED; *\/ */
+/*         } else { */
+/*             if (currentShader != "text") { */
+/*                 flush(); */
+/*                 useShader("text"); */
+/*                 currentShader = "text"; */
+/*             } */
+/*             currentColor = CT.text; */
+/*         } */
+
+/*         drawChar(font, text[i], x, y, sx, sy, currentColor); */
+/*         x += getCharacterWidth(font, text[i]) * sx; */
+/*     } */
+
+/*     flush(); */
+/* } */
 
 
 
@@ -1223,3 +1407,150 @@ int getGlobalArg(Buffer *argBuffer) {
         return result;
     }
 }
+
+#include <math.h>
+void handleScroll(Window *window) {
+    Buffer *buffer = window->buffer;
+    Font *font = buffer->font;
+
+    // Calculate the height of one line of text
+    float lineHeight = font->ascent + font->descent;
+
+    // Calculate the vertical position of the cursor in the buffer
+    int cursorLine = 0;
+    for (size_t i = 0; i < buffer->point && i < buffer->size; i++) {
+        if (buffer->content[i] == '\n') {
+            cursorLine++;
+        }
+    }
+    float cursorY = cursorLine * lineHeight;
+
+    // Define the top and bottom of the viewable area, considering the modeline
+    float viewTop = window->scroll.y;
+    float viewBottom = window->scroll.y + window->height - lineHeight - window->modelineHeight;
+
+    // Check if the cursor is above the view top or below the view bottom
+    if (cursorY < viewTop || cursorY > viewBottom) {
+        // Center the cursor vertically by adjusting scrollY
+        float newScrollY = cursorY - window->height / 2 + lineHeight / 2;
+
+        // Adjust to round to the nearest line height, favoring a line less
+        if (newScrollY >= 0) {
+            newScrollY = ceil((newScrollY - lineHeight / 2) / lineHeight) * lineHeight;
+        } else {
+            newScrollY = floor((newScrollY + lineHeight / 2) / lineHeight) * lineHeight;
+        }
+
+        // Clamp the new scrollY to ensure it's within valid content range
+        newScrollY = fmax(0, newScrollY); // Don't scroll past the top of the buffer
+        newScrollY = fmin(newScrollY, buffer->size * lineHeight - window->height); // Don't scroll past the bottom of the buffer
+
+        // Update the window's scroll position
+        window->scroll.y = newScrollY;
+    }
+}
+
+
+/* void handleScroll(Window *window) { */
+/*     Buffer *buffer = window->buffer; */
+/*     Font *font = buffer->font; */
+    
+/*     // Calculate the height of one line of text */
+/*     float lineHeight = font->ascent + font->descent; */
+
+/*     // Calculate the vertical position of the cursor in the buffer */
+/*     int cursorLine = 0; */
+/*     for (size_t i = 0; i < buffer->point && i < buffer->size; i++) { */
+/*         if (buffer->content[i] == '\n') { */
+/*             cursorLine++; */
+/*         } */
+/*     } */
+/*     float cursorY = cursorLine * lineHeight; */
+
+/*     // Define the top and bottom of the viewable area, considering the modeline */
+/*     float viewTop = window->scroll.y; */
+/*     float viewBottom = window->scroll.y + window->height - lineHeight - window->modelineHeight;  // Adjust to consider modeline */
+
+/*     // Check if the cursor is above the view top or below the view bottom */
+/*     if (cursorY < viewTop || cursorY > viewBottom) { */
+/*         // Center the cursor vertically by adjusting scrollY */
+/*         float newScrollY = cursorY - window->height / 2 + lineHeight / 2; */
+
+/*         // Clamp the new scrollY to ensure it's within valid content range */
+/*         newScrollY = fmax(0, newScrollY); // Don't scroll past the top of the buffer */
+/*         newScrollY = fmin(newScrollY, buffer->size * lineHeight - window->height); // Don't scroll past the bottom of the buffer */
+
+/*         // Update the window's scroll position */
+/*         window->scroll.y = newScrollY; */
+/*     } */
+/* } */
+
+
+/* void handleScroll(Window *window) { */
+/*     Buffer *buffer = window->buffer; */
+/*     Font *font = buffer->font; */
+    
+/*     // Calculate the height of one line of text */
+/*     float lineHeight = font->ascent + font->descent; */
+
+/*     // Calculate the vertical position of the cursor in the buffer */
+/*     int cursorLine = 0; */
+/*     for (size_t i = 0; i < buffer->point && i < buffer->size; i++) { */
+/*         if (buffer->content[i] == '\n') { */
+/*             cursorLine++; */
+/*         } */
+/*     } */
+/*     float cursorY = cursorLine * lineHeight; */
+
+/*     // Define the top and bottom of the viewable area, considering the modeline */
+/*     float viewTop = window->scroll.y; */
+/*     float viewBottom = window->scroll.y + window->height - lineHeight;  // Subtract lineHeight for the modeline height */
+
+/*     // Check if the cursor is above the view top or below the view bottom */
+/*     if (cursorY < viewTop || cursorY > viewBottom) { */
+/*         // Center the cursor vertically by adjusting scrollY */
+/*         float newScrollY = cursorY - window->height / 2 + lineHeight / 2; */
+
+/*         // Clamp the new scrollY to ensure it's within valid content range */
+/*         newScrollY = fmax(0, newScrollY); // Don't scroll past the top of the buffer */
+/*         newScrollY = fmin(newScrollY, buffer->size * lineHeight - window->height); // Don't scroll past the bottom of the buffer */
+
+/*         // Update the window's scroll position */
+/*         window->scroll.y = newScrollY; */
+/*     } */
+/* } */
+
+
+/* void handleScroll(Window *window) { */
+/*     Buffer *buffer = window->buffer; */
+/*     Font *font = buffer->font; */
+    
+/*     // Calculate the line height using the current font settings */
+/*     float lineHeight = font->ascent + font->descent; */
+
+/*     // Determine the cursor's vertical position by counting line breaks before the cursor */
+/*     int cursorLine = 0; */
+/*     for (size_t i = 0; i < buffer->point; i++) { */
+/*         if (buffer->content[i] == '\n') { */
+/*             cursorLine++; */
+/*         } */
+/*     } */
+/*     float cursorY = cursorLine * lineHeight; */
+
+/*     // Viewport boundaries considering the modeline's height if present */
+/*     float viewTop = window->scroll.y; */
+/*     float viewBottom = window->scroll.y + window->height - lineHeight; // Subtract modeline height if it affects viewable area */
+
+/*     // Check if the cursor is outside the viewable area and adjust if necessary */
+/*     if (cursorY < viewTop || cursorY >= viewBottom) { */
+/*         // Center the cursor in the window */
+/*         float newScrollY = cursorY - (window->height / 2) + (lineHeight / 2); */
+
+/*         // Clamp the scroll position to valid values: no negative scroll and no scroll beyond content */
+/*         newScrollY = fmax(0, newScrollY); */
+/*         newScrollY = fmin(newScrollY, buffer->size * lineHeight - window->height); */
+
+/*         // Apply the clamped scroll position */
+/*         window->scroll.y = newScrollY; */
+/*     } */
+/* } */

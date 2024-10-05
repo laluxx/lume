@@ -90,6 +90,7 @@ const char* next_history_element(NamedHistories *nh, const char *name, Buffer *m
         return NULL;
     }
 
+
     setBufferContent(minibuffer, history->entries[history->index]);
     return history->entries[history->index];
 }

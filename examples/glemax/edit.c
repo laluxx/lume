@@ -1,13 +1,16 @@
 #include "edit.h"
 #include "keychords.h"
 #include "faces.h"
+#include "syntax.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 
 // TODO kill_line() should delete the entire line if is composed of only whitespaces
+// TODO kill_line() should kill the entire line if its at the beginning of it
 
+// FIXME why arg doesn't work ? 
 void insertChar(Buffer *buffer, char c, int arg) {
     if (arg <= 0) {
         arg = 1;
@@ -98,59 +101,6 @@ void left_char(Buffer *buffer, bool shift, BufferManager *bm, int arg) {
         message(bm, "Beginning of buffer");
     }
 }
-
-
-
-/* void right_char(Buffer *buffer, bool shift, BufferManager *bm) { */
-/*     if (shift) { */
-/*         if (!buffer->region.active) { */
-/*             activateRegion(buffer); */
-/*         } */
-/*     } else { */
-/*         if (!buffer->region.marked) { */
-/*             buffer->region.active = false; */
-/*         } */
-/*     } */
-
-/*     if (buffer->point < buffer->size) { */
-/*         buffer->point++; */
-/*     } else { */
-/*         message(bm, "End of buffer"); */
-/*     } */
-/* } */
-
-
-/* void left_char(Buffer *buffer, bool shift, BufferManager *bm) { */
-/*     if (shift) { */
-/*         if (!buffer->region.active) { */
-/*             activateRegion(buffer); */
-/*         } */
-/*     } else { */
-/*         if (!buffer->region.marked) buffer->region.active = false; */
-/*     } */
-
-/*     if (buffer->point > 0) { */
-/*         buffer->point--; */
-/*     } else { */
-/*         message(bm, "Beginning of buffer"); */
-/*     } */
-/* } */
-
-
-/* void left_char(Buffer * buffer, bool shift) { */
-/*     if (shift) { */
-/*         if (!buffer->region.active) { */
-/*             activateRegion(buffer); */
-/*         } */
-/*     } else { */
-/*         if (!buffer->region.marked) buffer->region.active = false; */
-/*     } */
-
-/*     if (buffer->point > 0) { */
-/*         buffer->point--; */
-/*     } */
-/* } */
-
 
 
 void previous_line(Buffer *buffer, bool shift, BufferManager *bm) {
@@ -1057,6 +1007,10 @@ void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm,
         minibuffer->point = 0;
         minibuffer->content[0] = '\0';
         prompt->content = strdup("");
+    } else if (strcmp(prompt->content, "Shell command: ") == 0) {
+        add_to_history(nh, prompt->content, minibuffer->content);
+        cleanBuffer(bm, "prompt");
+        execute_shell_command(bm, minibuffer->content);
     } else {
         if (buffer->point > 0 && buffer->point < buffer->size &&
             buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
@@ -1163,6 +1117,7 @@ void find_file(BufferManager *bm, WindowManager *wm, int sw, int sh) {
             fprintf(stderr, "Failed to retrieve or create buffer for file: %s\n", displayPath);
             fclose(file);
         }
+        parseSyntax(fileBuffer);
     } else {
         fprintf(stderr, "File does not exist: %s\n", fullPath);
     }
@@ -1194,6 +1149,84 @@ void backspace(Buffer *buffer, bool electric_pair_mode) {
         buffer->content[buffer->size] = '\0';
     }
 }
+
+
+void execute_shell_command(BufferManager *bm, char *command) {
+    char *output = NULL;
+    FILE *pipe = popen(command, "r");
+    if (pipe == NULL) {
+        message(bm, "Failed to execute shell command.");
+        return;
+    }
+
+    char buffer[128];
+    size_t output_size = 0;
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        size_t chunk_length = strlen(buffer);
+        char *new_output = realloc(output, output_size + chunk_length + 1);
+        if (new_output == NULL) {
+            free(output);
+            pclose(pipe);
+            message(bm, "Failed to allocate memory for command output.");
+            return;
+        }
+        output = new_output;
+        memcpy(output + output_size, buffer, chunk_length);
+        output_size += chunk_length;
+    }
+
+    if (output != NULL) {
+        output[output_size] = '\0'; // Ensure null-terminated string
+
+        // Remove any trailing newline if present
+        if (output_size > 0 && output[output_size - 1] == '\n') {
+            output[output_size - 1] = '\0';
+        }
+
+        // Set the output directly to the minibuffer's content
+        Buffer *minibuffer = getBuffer(bm, "minibuffer");
+        if (minibuffer != NULL) {
+            setBufferContent(minibuffer, output);
+            minibuffer->point = 0; // Reset the cursor position to the start of the buffer
+        } else {
+            message(bm, "Minibuffer not found.");
+        }
+
+        free(output);
+    }
+
+    pclose(pipe);
+}
+
+void shell_command(BufferManager *bm) {
+    Buffer *minibuffer = getBuffer(bm, "minibuffer");
+    Buffer *prompt = getBuffer(bm, "prompt");
+
+    // TODO IMPORTANT Recursive minibuffer
+    /* if (minibuffer->size == 0) { */
+        if (bm->lastBuffer && bm->lastBuffer->name) {
+            minibuffer->size = 0;
+            minibuffer->point = 0;
+            minibuffer->content[0] = '\0';
+            free(prompt->content);
+            prompt->content = strdup("Shell command: ");
+            switchToBuffer(bm, "minibuffer");
+        } else {
+            message(bm, "No last buffer to go to.");
+        }
+        return;
+    /* } */
+
+
+    // Clear minibuffer after operation
+    minibuffer->size = 0;
+    minibuffer->point = 0;
+    minibuffer->content[0] = '\0';
+    prompt->content = strdup("");
+    switchToBuffer(bm, bm->lastBuffer->name);
+}
+
+
 
 
 void goto_line(BufferManager *bm, WindowManager *wm, int sw, int sh) {
@@ -1368,13 +1401,24 @@ void delete_blank_lines(Buffer *buffer, int arg) {
         }
     }
 
-    // Extend end forwards to include all blank lines after the current point
+    // Extend end forwards to include all blank lines after the current point,
+    // but stop if we encounter a non-blank, non-newline character after the newline
     while (end < length && (buffer->content[end] == '\n' || isspace((unsigned char)buffer->content[end]))) {
-        end++;
-        if (end < length && buffer->content[end] == '\n' && !isspace((unsigned char)buffer->content[end])) {
-            break;
+        if (buffer->content[end] == '\n') {
+            size_t next_pos = end + 1;
+            while (next_pos < length && isspace((unsigned char)buffer->content[next_pos])) {
+                // If next_pos reaches a non-whitespace character, stop extending end
+                if (buffer->content[next_pos] != '\n') {
+                    end = next_pos; // Retain the indentation
+                    goto done;
+                }
+                next_pos++;
+            }
         }
+        end++;
     }
+
+ done:
 
     // Ensure to keep one blank line where the point was
     if (start < point) {
@@ -1385,4 +1429,63 @@ void delete_blank_lines(Buffer *buffer, int arg) {
     }
     insertChar(buffer, '\n', arg);
 }
+
+#include <errno.h>
+
+// TODO (no changes need to saved)
+void save_buffer(BufferManager *bm, Buffer *buffer) {
+    // Check if the buffer is NULL or if it's read-only
+    if (buffer == NULL || buffer->readOnly) {
+        message(bm, "Cannot save a read-only buffer.");
+        return;
+    }
+
+    // Check if the buffer has a valid path
+    if (buffer->path == NULL || strlen(buffer->path) == 0) {
+        message(bm, "No file path specified.");
+        return;
+    }
+
+    // Resolve the full path if the path starts with '~'
+    const char *homeDir = getenv("HOME");
+    char fullPath[PATH_MAX];
+
+    if (buffer->path[0] == '~') {
+        if (homeDir) {
+            snprintf(fullPath, sizeof(fullPath), "%s%s", homeDir, buffer->path + 1);
+        } else {
+            message(bm, "Environment variable HOME is not set.");
+            return;
+        }
+    } else {
+        strncpy(fullPath, buffer->path, sizeof(fullPath) - 1);
+        fullPath[sizeof(fullPath) - 1] = '\0'; // Ensure null termination
+    }
+
+    // Open the file for writing
+    FILE *file = fopen(fullPath, "w");
+    if (file == NULL) {
+        char errMsg[256];
+        snprintf(errMsg, sizeof(errMsg), "Error saving file: %s", strerror(errno));
+        message(bm, errMsg);
+        return;
+    }
+
+    // Write the content to the file
+    size_t written = fwrite(buffer->content, sizeof(char), buffer->size, file);
+    if (written != buffer->size) {
+        fclose(file);
+        message(bm, "Error writing to file.");
+        return;
+    }
+
+    // Close the file after writing
+    fclose(file);
+
+    // Display a message indicating success using the full path
+    char msg[512];
+    snprintf(msg, sizeof(msg), "Wrote %s", fullPath);
+    message(bm, msg);
+}
+
 

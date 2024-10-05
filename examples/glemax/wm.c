@@ -12,22 +12,23 @@ void initWindowManager(WindowManager *wm, BufferManager *bm, Font *font, int sw,
     wm->head->prev = NULL;
     wm->head->next = NULL;
     wm->head->isActive = true;
+    wm->head->modelineHeight = 25.0;
     wm->activeWindow = wm->head;
     wm->activeWindow->splitOrientation = VERTICAL;
+    wm->head->scroll = (Vec2f){0, 0}; 
     wm->count = 1;
 }
-
-
 
 void split_window_right(WindowManager *wm, Font *font, int sw, int sh) {
     Window *active = wm->activeWindow;
     Window *newWindow = malloc(sizeof(Window));
     if (!newWindow) return;
 
-    *newWindow = *active; // Copy the settings from active window
+    *newWindow = *active; // NOTE Copy the settings from active window
     newWindow->width /= 2;
     active->width -= newWindow->width;
     newWindow->x += active->width;
+    
     active->splitOrientation = VERTICAL; // Set split orientation
     newWindow->splitOrientation = VERTICAL; // Set split orientation
 
@@ -41,7 +42,6 @@ void split_window_right(WindowManager *wm, Font *font, int sw, int sh) {
 
     wm->count++;
 }
-
 
 void split_window_below(WindowManager *wm, Font *font, int sw, int sh) {
     Window *active = wm->activeWindow;
@@ -116,8 +116,6 @@ void delete_window(WindowManager *wm) {
     wm->count--;
 }
 
-
-
 void other_window(WindowManager *wm, int direction) {
     if (direction == 1) {
         if (wm->activeWindow->next) {
@@ -161,8 +159,6 @@ void freeWindowManager(WindowManager *wm) {
     wm->count = 0;
 }
 
-
-
 void updateWindowDimensions(Window *win, int x, int y, int width, int height) {
     if (win == NULL) return;
 
@@ -200,15 +196,6 @@ void updateWindows(WindowManager *wm, Font *font, int newWidth, int newHeight) {
 
 
 
-
-
-
-
-
-
-
-
-
 /* void updateWindows(WindowManager *wm, Font *font, int newWidth, int newHeight) { */
 /*     Window *win = wm->head; */
 /*     int numberOfWindows = 0; */
@@ -236,7 +223,6 @@ void updateWindows(WindowManager *wm, Font *font, int newWidth, int newHeight) {
 /*         win = win->next; */
 /*     } */
 /* } */
-
 
 void printActiveWindowDetails(WindowManager *wm) {
     Window *win = wm->activeWindow;
