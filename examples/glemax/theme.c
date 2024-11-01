@@ -2,6 +2,8 @@
 #include <string.h>
 #include "theme.h"
 
+// TODO Theme lerping
+
 int currentThemeIndex = 0;
 Theme themes[8];
 
@@ -15,7 +17,7 @@ void initThemes() {
     themes[0] = (Theme){
         .name = "dark",
         .bg = hexToColor("#18181B"),
-        .cursor = hexToColor("#cd9575"),
+        .cursor = hexToColor("#e4e4e8"),
         .text = hexToColor("#e4e4e8"),
         .minibuffer = hexToColor("#18181B"),
         .modeline = hexToColor("#222225"),
@@ -32,7 +34,6 @@ void initThemes() {
         .operator = hexToColor("#e4e4e8"),
         .variable = hexToColor("#968cc7"),
         .keyword = hexToColor("#4d9391"),
-
         .comment = hexToColor("#545c5e"),
         .null = hexToColor("#ab98b5"),
         .negation = hexToColor("#cd5c60"),

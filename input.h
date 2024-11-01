@@ -9,16 +9,29 @@ typedef void (*TextCallback)(unsigned int codepoint);
 typedef void (*KeyInputCallback)(int key, int action, int mods);
 typedef void (*MouseButtonCallback)(int button, int action, int mods);
 typedef void (*CursorPosCallback)(double xpos, double ypos);
+typedef void (*ScrollCallback)(double xOffset, double deltaY);
 
 extern TextCallback currentTextCallback;
 extern KeyInputCallback currentKeyCallback;
 extern MouseButtonCallback currentMouseButtonCallback;
 extern CursorPosCallback currentCursorPosCallback;
+extern ScrollCallback currentScrollCallback;
 
 void registerTextCallback(TextCallback callback);
 void registerKeyCallback(KeyInputCallback callback);
 void registerMouseButtonCallback(MouseButtonCallback callback);
 void registerCursorPosCallback(CursorPosCallback callback);
+void registerScrollCallback(ScrollCallback callback);
+
+void char_callback(GLFWwindow* window, unsigned int codepoint);
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
+void scroll_callback(GLFWwindow* window, double xOffset, double yOffset);
+
+
+
+
 
 void initInput();
 void updateInput();
@@ -26,10 +39,11 @@ int isKeyDown(int key);
 int isKeyPressed(int key);
 
 GLFWwindow* getCurrentContext();
-
 void getCursorPosition(double* x, double* y);
-Vec2f getMouseDelta();
+bool getMouseButton(int button);
 
+
+Vec2f getMouseDelta();
 int isMouseButtonPressed(int button);
 int isMouseButtonReleased(int button);
 int isMouseButtonDown(int button);

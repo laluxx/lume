@@ -95,7 +95,6 @@ int main(void) {
         flush();
 
 
-
         useShader("simple");
 
         if (isGamepadButtonDown(GAMEPAD_BUTTON_A)) {

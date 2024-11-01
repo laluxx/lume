@@ -22,7 +22,7 @@ extern Font *globalFontCache[MAX_FONT_SCALE_INDEX];  // Global cache of rasteriz
 
 void initScale(Scale *scale);
 Font* updateFont(Scale *scale, int newIndex, char *fontname);
-void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg);
-void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg);
+void decreaseFontSize(BufferManager *bm, char *fontname, WindowManager *wm, int sh, int arg);
+void increaseFontSize(BufferManager *bm, char *fontname, WindowManager *wm, int sh, int arg);
 
 #endif

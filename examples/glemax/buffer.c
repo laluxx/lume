@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "syntax.h"
+#include "isearch.h"
 
 void initBuffer(Buffer *buffer, const char *name, const char *path) {
     if (!parser) {  // Ensure the global parser is initialized
@@ -31,48 +32,6 @@ void initBuffer(Buffer *buffer, const char *name, const char *path) {
     initSyntaxArray(&buffer->syntaxArray, 10);
 }
 
-
-/* void initBuffer(Buffer *buffer, const char *name, const char *path) { */
-/*     buffer->capacity = 1024;  // Initial capacity */
-/*     buffer->content = malloc(buffer->capacity); */
-/*     buffer->size = 0; */
-/*     buffer->point = 0; */
-/*     buffer->readOnly = false; */
-/*     buffer->name = strdup(name);  // Duplicate the name for ownership */
-/*     buffer->path = strdup(path);  // Duplicate the path for ownership */
-/*     buffer->region.active = false; */
-/*     buffer->scale.index = 0; */
-
-/*     buffer->tree = ts_parser_parse_string(parser, NULL, buffer->content, buffer->size); */
-/*     initSyntaxArray(&buffer->syntaxArray, 10);  // Initial size can be arbitrary; adjust based on expected usage */
-    
-/*     if (buffer->content == NULL || buffer->name == NULL || buffer->path == NULL || buffer->syntaxArray.items == NULL) { */
-/*         fprintf(stderr, "Failed to allocate memory for buffer components.\n"); */
-/*         exit(EXIT_FAILURE); */
-/*     } else { */
-/*         buffer->content[0] = '\0';  // Initialize content as empty string */
-/*     } */
-/* } */
-
-
-/* void initBuffer(Buffer *buffer, const char *name, const char *path) { */
-/*     buffer->capacity = 1024;  // Initial capacity */
-/*     buffer->content = malloc(buffer->capacity); */
-/*     buffer->size = 0; */
-/*     buffer->point = 0; */
-/*     buffer->readOnly = false; */
-/*     buffer->name = strdup(name);  // Duplicate the name for ownership */
-/*     buffer->path = strdup(path);  // Duplicate the path for ownership */
-/*     buffer->region.active = false; */
-/*     buffer->scale.index = 0; */
-    
-/*     if (buffer->content == NULL || buffer->name == NULL || buffer->path == NULL) { */
-/*         fprintf(stderr, "Failed to allocate memory for buffer.\n"); */
-/*         exit(EXIT_FAILURE); */
-/*     } else { */
-/*         buffer->content[0] = '\0';  // Initialize content as empty string */
-/*     } */
-/* } */
 
 void newBuffer(BufferManager *manager, WindowManager *wm,
                const char *name, const char *path, char *fontname,
@@ -201,6 +160,7 @@ void previousBuffer(BufferManager *manager) {
 
 void activateRegion(Buffer *buffer) {
     if (!buffer->region.active) {
+        buffer->region.mark = buffer->point;
         buffer->region.start = buffer->region.end = buffer->point;
         buffer->region.active = true;
     }
@@ -209,8 +169,18 @@ void activateRegion(Buffer *buffer) {
 void updateRegion(Buffer *buffer, size_t new_point) {
     if (buffer->region.active) {
         buffer->region.end = new_point;
+
+        // Normalize region boundaries based on the mark to ensure 'start' is less than 'end'
+        if (buffer->region.mark <= new_point) {
+            buffer->region.start = buffer->region.mark;
+            buffer->region.end = new_point;
+        } else {
+            buffer->region.start = new_point;
+            buffer->region.end = buffer->region.mark;
+        }
     }
 }
+
 
 void deactivateRegion(Buffer *buffer) {
     buffer->region.active = false;
@@ -248,7 +218,7 @@ void message(BufferManager *bm, const char *message) {
     if (formattedMessage) {
         snprintf(formattedMessage, totalLen, "[%s]", message);
 
-        if (isCurrentBuffer(bm, "minibuffer")) {
+        if (isCurrentBuffer(bm, "minibuffer") || isearch.searching) {
               setBufferContent(messageBuffer, formattedMessage);
         } else {
             setBufferContent(minibuffer, message);
@@ -268,3 +238,53 @@ void cleanBuffer(BufferManager *bm, char *name) {
     buffer->point = 0;
     buffer->content[0] = '\0';
 }
+
+
+// MODELINE
+
+void addSegment(Segments *segments, const char *name, const char *content) {
+    segments->segment = realloc(segments->segment, (segments->count + 1) * sizeof(Segment));
+    segments->segment[segments->count].name = strdup(name);
+    segments->segment[segments->count].content = strdup(content);
+    segments->count++;
+}
+
+void initSegments(Segments *segments) {
+    segments->segment = NULL;
+    segments->count = 0;
+    addSegment(segments, "space",  "");
+    addSegment(segments, "logo",   "C");
+    addSegment(segments, "path",   "*scatch*");
+    addSegment(segments, "line-number",   "L295");
+}
+
+
+void updateSegments(Modeline *modeline, Buffer *buffer) {
+    for (size_t i = 0; i < modeline->segments.count; i++) {
+        Segment *segment = &modeline->segments.segment[i];
+
+        if (strcmp(segment->name, "line-number") == 0) {
+            // Update the line number segment with the current line number
+            int lineNumber = getLineNumber(buffer);
+            free(segment->content);  // Free the old content
+            char lineNumStr[32];     // Sufficiently large buffer to hold the line number string
+            snprintf(lineNumStr, sizeof(lineNumStr), "L%d", lineNumber);
+            segment->content = strdup(lineNumStr); // Update with new line number
+        }
+    }
+}
+
+
+
+int getLineNumber(Buffer *buffer) {
+    int lineNumber = 1;
+    for (size_t i = 0; i < buffer->point && i < buffer->size; i++) {
+        if (buffer->content[i] == '\n') lineNumber++;
+    }
+
+    return lineNumber;
+}
+
+
+
+

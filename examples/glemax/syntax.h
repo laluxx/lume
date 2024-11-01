@@ -27,5 +27,8 @@ void insertSyntax(SyntaxArray *array, Syntax syntax);
 void initGlobalParser();
 void freeGlobalParser();
 void printSyntaxInfo(const Buffer *buffer);
+TSPoint byteToPoint(const char* text, uint32_t byte);
+void adjustSyntaxRanges(Buffer *buffer, int index, int lengthChange);
 
+bool isHexColor(const char *text);
 #endif // SYNTAX_H

@@ -170,12 +170,26 @@ void getCursorPosition(double* x, double* y) {
         glfwGetWindowSize(window, NULL, &windowHeight);
         *y = windowHeight - *y; // NOTE Invert the y-coordinate
     } else {
+        printf("NO CONTEXT\n");
         *x = 0.0;
         *y = 0.0;
     }
 }
 
+bool getMouseButton(int button) {
+    GLFWwindow* window = getCurrentContext();
+    if (window != NULL) {
+        return glfwGetMouseButton(window, button) == GLFW_PRESS;
+    } else {
+        printf("NO CONTEXT\n");
+        return false;
+    }
+}
 
+
+
+
+// NOTE not a glfw wrapper
 Vec2f getMouseDelta() {
     Vec2f mouseDelta = {
         currentMousePosition.x - lastMousePosition.x,
@@ -184,6 +198,11 @@ Vec2f getMouseDelta() {
 
     lastMousePosition = currentMousePosition;
     return mouseDelta;
+}
+
+ScrollCallback currentScrollCallback = NULL;
+void registerScrollCallback(ScrollCallback callback) {
+    currentScrollCallback = callback;
 }
 
 
@@ -205,6 +224,54 @@ void registerMouseButtonCallback(MouseButtonCallback callback) {
 CursorPosCallback currentCursorPosCallback = NULL;
 void registerCursorPosCallback(CursorPosCallback callback) {
     currentCursorPosCallback = callback;
+}
+
+
+
+void char_callback(GLFWwindow* window, unsigned int codepoint) {
+    if (currentTextCallback != NULL) {
+        currentTextCallback(codepoint);
+    }
+}
+
+/* void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) { */
+/*     if (currentKeyCallback != NULL) { */
+/*         currentKeyCallback(key, action, mods); */
+/*     } */
+/* } */
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    // Update the internal state first
+    if (action == GLFW_PRESS) {
+        keys[key] = 1;
+        keysPressed[key] = 1;
+    } else if (action == GLFW_RELEASE) {
+        keys[key] = 0;
+        // Optionally handle keysReleased array here if implemented
+    }
+
+    // Then call the user's callback if it's registered
+    if (currentKeyCallback != NULL) {
+        currentKeyCallback(key, action, mods);
+    }
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (currentMouseButtonCallback != NULL) {
+        currentMouseButtonCallback(button, action, mods);
+    }
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+    if (currentCursorPosCallback != NULL) {
+        currentCursorPosCallback(xpos, ypos);
+    }
+}
+
+void scroll_callback(GLFWwindow* window, double xOffset, double yOffset) {
+    if (currentScrollCallback != NULL) {
+        currentScrollCallback(xOffset, yOffset);
+    }
 }
 
 

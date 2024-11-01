@@ -12,7 +12,7 @@ void initWindowManager(WindowManager *wm, BufferManager *bm, Font *font, int sw,
     wm->head->prev = NULL;
     wm->head->next = NULL;
     wm->head->isActive = true;
-    wm->head->modelineHeight = 25.0;
+    wm->head->modeline.height = 25.0;
     wm->activeWindow = wm->head;
     wm->activeWindow->splitOrientation = VERTICAL;
     wm->head->scroll = (Vec2f){0, 0}; 
@@ -194,36 +194,6 @@ void updateWindows(WindowManager *wm, Font *font, int newWidth, int newHeight) {
     }
 }
 
-
-
-/* void updateWindows(WindowManager *wm, Font *font, int newWidth, int newHeight) { */
-/*     Window *win = wm->head; */
-/*     int numberOfWindows = 0; */
-    
-/*     // First, count the number of windows */
-/*     while (win) { */
-/*         numberOfWindows++; */
-/*         win = win->next; */
-/*     } */
-
-/*     // Calculate new width for each window if they are arranged horizontally */
-/*     int newWindowWidth = newWidth / numberOfWindows; */
-    
-/*     // Reset to head to update dimensions and positions */
-/*     win = wm->head; */
-/*     int xOffset = 0;  // Starting x position for the first window */
-
-/*     while (win) { */
-/*         win->width = newWindowWidth; */
-/*         win->height = newHeight;  // Each window takes full screen height */
-/*         win->x = xOffset; */
-/*         win->y = newHeight - font->ascent + font->descent;  // Adjust for font height to start text from the top */
-
-/*         xOffset += newWindowWidth;  // Move the x offset for the next window */
-/*         win = win->next; */
-/*     } */
-/* } */
-
 void printActiveWindowDetails(WindowManager *wm) {
     Window *win = wm->activeWindow;
     if (!win) {
@@ -231,22 +201,50 @@ void printActiveWindowDetails(WindowManager *wm) {
         return;
     }
 
+    // Print window details in a structured format
     printf("\nActive Window Details:\n");
-    printf("  X Position: %.2f\n", win->x);
-    printf("  Y Position: %.2f\n", win->y);
-    printf("  Width: %.2f\n", win->width);
-    printf("  Height: %.2f\n", win->height);
-    printf("  Buffer Name: %s\n", win->buffer->name);
-    printf("  Is Active: %s\n", win->isActive ? "Yes" : "No");
-    printf("  Split Orientation: %s\n", 
-           (win->splitOrientation == HORIZONTAL) ? "Horizontal" : "Vertical");
-    printf("  Window Count in Manager: %d\n", wm->count);
-    
-    // Additional details about linked windows
-    printf("  Previous Window: %p\n", (void *)win->prev);
-    printf("  Next Window: %p\n", (void *)win->next);
-}
+    printf("{\n");
+    printf("  X: %.2f,\n", win->x);
+    printf("  Y: %.2f,\n", win->y);
+    printf("  Width: %.2f,\n", win->width);
+    printf("  Height: %.2f,\n", win->height);
+    printf("  Modeline Height: %.2f,\n", win->modeline.height);
+    printf("  Active: %s,\n", win->isActive ? "True" : "False");
+    printf("  Split Orientation: %s,\n", (win->splitOrientation == HORIZONTAL) ? "Horizontal" : "Vertical");
+    printf("  Scroll: { X: %.2f, Y: %.2f },\n", win->scroll.x, win->scroll.y);
+    printf("  Previous Window: %p,\n", (void *)win->prev);
+    printf("  Next Window: %p,\n", (void *)win->next);
+    printf("  Window Count in Manager: %d,\n", wm->count);
+    printf("\n");
 
+    // Print buffer details
+    Buffer *buf = win->buffer;
+    if (buf) {
+        printf("  Buffer: {\n");
+        printf("    Name: %s,\n", buf->name);
+        printf("    Path: %s,\n", buf->path);
+        printf("    Size: %zu,\n", buf->size);
+        printf("    Capacity: %zu,\n", buf->capacity);
+        printf("    Point: %zu,\n", buf->point);
+        printf("    Region: { Start: %zu, End: %zu, Active: %s },\n", buf->region.start, buf->region.end, buf->region.active ? "True" : "False");
+        printf("    ReadOnly: %s,\n", buf->readOnly ? "True" : "False");
+
+        // Print syntax array details
+        /* printf("    SyntaxArray: {\n"); */
+        /* printf("      Used: %zu,\n", buf->syntaxArray.used); */
+        /* printf("      Size: %zu,\n", buf->syntaxArray.size); */
+        /* for (size_t i = 0; i < buf->syntaxArray.used; i++) { */
+        /*     Syntax s = buf->syntaxArray.items[i]; */
+        /*     printf("      Syntax: { Start: %zu, End: %zu, Color: { R: %u, G: %u, B: %u, A: %u } },\n",  */
+        /*            s.start, s.end, s.color.r, s.color.g, s.color.b, s.color.a); */
+        /* } */
+        /* printf("    },\n"); // Close syntax array */
+
+        // Optional: Include more buffer details as needed
+        printf("  },\n"); // Close buffer
+    }
+    printf("}\n"); // Close window
+}
 
 bool isBottomWindow(WindowManager *wm, Window *window) {
     // Assuming vertical stacking of windows:

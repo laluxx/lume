@@ -8,30 +8,6 @@
 
 static GLFWwindow* g_window = NULL;
 
-void char_callback(GLFWwindow* window, unsigned int codepoint) {
-    if (currentTextCallback != NULL) {
-        currentTextCallback(codepoint);
-    }
-}
-
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (currentKeyCallback != NULL) {
-        currentKeyCallback(key, action, mods);
-    }
-}
-
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-    if (currentMouseButtonCallback != NULL) {
-        currentMouseButtonCallback(button, action, mods);
-    }
-}
-
-void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
-    if (currentCursorPosCallback != NULL) {
-        currentCursorPosCallback(xpos, ypos);
-    }
-}
-
 GLFWwindow* initWindow(int width, int height, const char* title) {
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
@@ -59,6 +35,7 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     glfwSetKeyCallback(g_window, key_callback);   // Set key callback
     glfwSetMouseButtonCallback(g_window, mouse_button_callback);  // Set mouse button callback
     glfwSetCursorPosCallback(g_window, cursor_position_callback);  // Set cursor position callback
+    glfwSetScrollCallback(g_window, scroll_callback);  // Set scroll callback
 
     // Initialize GLEW
     /* glewExperimental = GL_TRUE;  // Enable GLEW experimental mode */

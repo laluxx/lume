@@ -6,51 +6,54 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
+#include <math.h>
 
 // TODO kill_line() should delete the entire line if is composed of only whitespaces
 // TODO kill_line() should kill the entire line if its at the beginning of it
 
 // FIXME why arg doesn't work ? 
-void insertChar(Buffer *buffer, char c, int arg) {
-    if (arg <= 0) {
-        arg = 1;
-    }
+/* void insertChar(Buffer *buffer, char c, int arg) { */
+/*     if (arg <= 0) { */
+/*         arg = 1; */
+/*     } */
 
-    while (buffer->size + arg >= buffer->capacity) {
-        buffer->capacity *= 2;
-        char *newContent = realloc(buffer->content, buffer->capacity * sizeof(char));
-        if (!newContent) {
-            fprintf(stderr, "Failed to reallocate memory for buffer.\n");
-            return;
-        }
-        buffer->content = newContent;
-    }
-
-    for (int i = 0; i < arg; i++) {
-        memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point);
-        buffer->content[buffer->point] = c;
-        buffer->point++;
-        buffer->size++;
-    }
-    buffer->content[buffer->size] = '\0';
-}
-
-
-/* void insertChar(Buffer *buffer, char c) { */
-/*     if (buffer->size + 1 >= buffer->capacity) { */
+/*     while (buffer->size + arg >= buffer->capacity) { */
 /*         buffer->capacity *= 2; */
-/*         buffer->content = realloc(buffer->content, buffer->capacity * sizeof(char)); */
-/*         if (!buffer->content) { */
+/*         char *newContent = realloc(buffer->content, buffer->capacity * sizeof(char)); */
+/*         if (!newContent) { */
 /*             fprintf(stderr, "Failed to reallocate memory for buffer.\n"); */
 /*             return; */
 /*         } */
+/*         buffer->content = newContent; */
 /*     } */
-/*     memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point); */
-/*     buffer->content[buffer->point] = c; */
-/*     buffer->point++; */
-/*     buffer->size++; */
+
+/*     for (int i = 0; i < arg; i++) { */
+/*         memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point); */
+/*         buffer->content[buffer->point] = c; */
+/*         buffer->point++; */
+/*         buffer->size++; */
+/*     } */
 /*     buffer->content[buffer->size] = '\0'; */
 /* } */
+
+
+#include "syntax.h"
+
+void insertChar(Buffer *buffer, char c) {
+    if (buffer->size + 1 >= buffer->capacity) {
+        buffer->capacity *= 2;
+        buffer->content = realloc(buffer->content, buffer->capacity * sizeof(char));
+        if (!buffer->content) {
+            fprintf(stderr, "Failed to reallocate memory for buffer.\n");
+            return;
+        }
+    }
+    memmove(buffer->content + buffer->point + 1, buffer->content + buffer->point, buffer->size - buffer->point);
+    buffer->content[buffer->point] = c;
+    buffer->point++;
+    buffer->size++;
+    buffer->content[buffer->size] = '\0';
+}
 
 void beginning_of_buffer(Buffer *buffer) {
     if (buffer != NULL && buffer->content != NULL) {
@@ -264,7 +267,6 @@ void delete_char(Buffer *buffer, BufferManager *bm) {
     buffer->content[buffer->size] = '\0';
 }
 
-
 void kill_line(Buffer *buffer, KillRing *kr) {
     if (buffer->point >= buffer->size) return; // Nothing to delete if at the end of the buffer
 
@@ -303,7 +305,6 @@ void kill_line(Buffer *buffer, KillRing *kr) {
     }
 }
 
-
 void open_line(Buffer *buffer) {
     // Ensure there is enough capacity, and if not, expand the buffer
     if (buffer->size + 1 >= buffer->capacity) {
@@ -330,7 +331,7 @@ void delete_indentation(Buffer *buffer, BufferManager *bm, int arg) {
     if (buffer->point > 0) {
         left_char(buffer, false, bm, arg);
         delete_char(buffer, bm);
-        insertChar(buffer, ' ', arg);
+        insertChar(buffer, ' ');
         left_char(buffer, false, bm, arg);
     }
 }
@@ -390,11 +391,6 @@ void removeIndentation(Buffer *buffer, int indentation) {
         }
     }
 }
-
-
-
-
-
 
 
 void initKillRing(KillRing* kr, int capacity) {
@@ -524,7 +520,7 @@ void yank(Buffer *buffer, KillRing *kr, int arg) {
     if (textToYank) {
         // Insert text into the buffer
         for (int i = 0; textToYank[i] != '\0'; ++i) {
-            insertChar(buffer, textToYank[i], arg);
+            insertChar(buffer, textToYank[i]);
         }
 
         // Add the yanked text to the kill ring
@@ -828,7 +824,6 @@ void backward_paragraph(Buffer *buffer, bool shift) {
 }
 
 
-
 // TODO use tha arg, to indent n number of line after or before the point if negative
 void indent(Buffer *buffer, int indentation, BufferManager *bm, int arg) {
     size_t cursor_row_start = 0, cursor_row_end = buffer->size;
@@ -887,7 +882,7 @@ void indent(Buffer *buffer, int indentation, BufferManager *bm, int arg) {
     buffer->point = cursor_row_start; // Move cursor to the start of the line
 
     while (currentIndentation < requiredIndentation) {
-        insertChar(buffer, ' ', arg); // Insert additional spaces
+        insertChar(buffer, ' '); // Insert additional spaces
         currentIndentation++;
     }
     while (currentIndentation > requiredIndentation && currentIndentation > 0) {
@@ -902,6 +897,7 @@ void indent(Buffer *buffer, int indentation, BufferManager *bm, int arg) {
         buffer->point = cursor_row_start + requiredIndentation;
     }
 }
+
 
 // FIXME
 void indent_region(Buffer *buffer, BufferManager *bm, int indentation, int arg) {
@@ -979,17 +975,18 @@ void indent_region(Buffer *buffer, BufferManager *bm, int indentation, int arg) 
 
 void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm,
            Buffer *minibuffer, Buffer *prompt,
-           ISearch *isearch, int indentation, bool electric_indent_mode,
+           int indentation, bool electric_indent_mode,
            int sw, int sh,
            NamedHistories *nh, int arg) {
     if (buffer->region.active) buffer->region.active = false;
-    if (isearch->searching) {
+    if (isearch.searching) {
         add_to_history(nh, prompt->content, minibuffer->content);
-        isearch->lastSearch = strdup(minibuffer->content);
+        isearch.lastSearch = strdup(minibuffer->content);
         minibuffer->size = 0;
         minibuffer->point = 0;
         minibuffer->content[0] = '\0';
-        isearch->searching = false;
+        isearch.searching = false;
+        isearch.count = 0;
         prompt->content = strdup("");
     } else if (strcmp(prompt->content, "Find file: ") == 0) {
         add_to_history(nh, prompt->content, minibuffer->content);
@@ -1015,13 +1012,13 @@ void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm,
         if (buffer->point > 0 && buffer->point < buffer->size &&
             buffer->content[buffer->point - 1] == '{' && buffer->content[buffer->point] == '}') {
             // Insert a newline and indent for the opening brace
-            insertChar(buffer, '\n', arg);
+            insertChar(buffer, '\n');
             if (electric_indent_mode) {
                 indent(buffer, indentation, bm, arg);
             }
 
             size_t newCursorPosition = buffer->point;
-            insertChar(buffer, '\n', arg);
+            insertChar(buffer, '\n');
 
             if (electric_indent_mode) {
                 indent(buffer, indentation, bm, arg);
@@ -1029,7 +1026,7 @@ void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm,
 
             buffer->point = newCursorPosition;
         } else {
-            insertChar(buffer, '\n', arg);
+            insertChar(buffer, '\n');
         }
 
         if (electric_indent_mode) {
@@ -1040,6 +1037,8 @@ void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm,
 
 // TODO Dired when calling find_file on a directory
 // TODO Create files when they don't exist (and directories to get to that file)
+
+
 void find_file(BufferManager *bm, WindowManager *wm, int sw, int sh) {
     Buffer *minibuffer = getBuffer(bm, "minibuffer");
     Buffer *prompt = getBuffer(bm, "prompt");
@@ -1427,12 +1426,14 @@ void delete_blank_lines(Buffer *buffer, int arg) {
         buffer->content[start] = '\n'; // Set a single newline at the start
         buffer->point = start; // Set point at the beginning of the preserved newline
     }
-    insertChar(buffer, '\n', arg);
+    insertChar(buffer, '\n');
 }
 
 #include <errno.h>
 
 // TODO (no changes need to saved)
+// NOTE How does track it internally ?
+// a dirty buffer system ?
 void save_buffer(BufferManager *bm, Buffer *buffer) {
     // Check if the buffer is NULL or if it's read-only
     if (buffer == NULL || buffer->readOnly) {
@@ -1486,6 +1487,69 @@ void save_buffer(BufferManager *bm, Buffer *buffer) {
     char msg[512];
     snprintf(msg, sizeof(msg), "Wrote %s", fullPath);
     message(bm, msg);
+}
+
+void recenter(Window *window) {
+    if (!window || !window->buffer) return;
+
+    Buffer *buffer = window->buffer;
+    Font *font = buffer->font;
+    float lineHeight = font->ascent + font->descent;
+
+    // Calculate the vertical position of the cursor in the buffer
+    int cursorLine = 0;
+    for (size_t i = 0; i < buffer->point && i < buffer->size; i++) {
+        if (buffer->content[i] == '\n') {
+            cursorLine++;
+        }
+    }
+
+    float cursorY = cursorLine * lineHeight;
+    float verticalCenter = window->height / 2;
+    window->scroll.y = cursorY - verticalCenter + lineHeight / 2;
+    // Clamp the scroll position to avoid scrolling beyond the content
+    float maxScroll = buffer->size * lineHeight - window->height;
+    window->scroll.y = fmax(0, fmin(window->scroll.y, maxScroll));
+}
+
+int recenterState = 0; // 0: Initial, 1: Top, 2: Center, 3: Bottom
+
+void recenter_top_bottom(Window *window) {
+    if (!window || !window->buffer) return;
+
+    Buffer *buffer = window->buffer;
+    Font *font = buffer->font;
+    float lineHeight = font->ascent + font->descent;
+
+    // Calculate the cursor's current line number dynamically
+    int cursorLine = 0;
+    for (size_t i = 0; i < buffer->point; i++) {
+        if (buffer->content[i] == '\n') cursorLine++;
+    }
+
+    float cursorY = cursorLine * lineHeight;
+
+    // Determine the new scroll position based on the recenter state
+    switch (recenterState) {
+    case 0:  // Center
+        recenter(window);  // Use existing recenter function
+        break;
+    case 1:  // Top
+        window->scroll.y = cursorY;
+        break;
+    case 2:  // Bottom
+        window->scroll.y = cursorY - window->height + lineHeight;
+        break;
+    default:
+        break;
+    }
+
+    // Clamp the scroll position
+    float maxScroll = buffer->size * lineHeight - window->height;
+    window->scroll.y = fmax(0, fmin(window->scroll.y, maxScroll));
+
+    // Cycle the recenter state
+    recenterState = (recenterState + 1) % 3;
 }
 
 

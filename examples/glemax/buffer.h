@@ -13,6 +13,7 @@ typedef struct {
     Color color;
 } Syntax;
 
+// TODO keep syntaxes in a tree
 typedef struct {
     Syntax *items;
     size_t used;
@@ -27,9 +28,9 @@ typedef struct {
 typedef struct {
     size_t start;   // Start position of the region
     size_t end;     // End position of the region
+    size_t mark;    // NOTE Could become an array of marks
     bool active;    // Whether the region is currently active
     bool marked;    // Whether the region was activated by pressing C-SPC
-    // TODO we could store the mark inside the region
 } Region;
 
 typedef struct {
@@ -61,12 +62,28 @@ typedef enum {
     HORIZONTAL
 } SplitOrientation;
 
+typedef struct {
+    char *name;     // Name or identifier of the segment
+    char *content;  // Content to be displayed in this segment
+} Segment;
+
+typedef struct {
+    Segment *segment;
+    size_t count;
+} Segments;
+
+// TODO track the width too (when splitting or resiging the GLFW window)
+typedef struct {
+    float height;
+    Segments segments;
+} Modeline;
+
 typedef struct Window {
     float x;              // X position
     float y;              // Y position
     float width;          // Width of the window
     float height;         // Height of the window
-    float modelineHeight; // Height of the modeline
+    Modeline modeline;    // Modeline for the window
     Vec2f scroll;
     Buffer *buffer;      // Buffer displayed in this window
     /* struct Window *parent;   // NOTE This could be implemented later on.. */
@@ -77,9 +94,9 @@ typedef struct Window {
 } Window;
 
 typedef struct {
-    Window *head;        // Head of the window list
-    Window *activeWindow;// Currently active window
-    int count;           // Number of windows
+    Window *head;         // Head of the window list
+    Window *activeWindow; // Currently active window
+    int count;            // Number of windows
 } WindowManager;
 
 void initBuffer(Buffer *buffer, const char *name, const char *path);
@@ -107,5 +124,14 @@ void deactivateRegion(Buffer *buffer);
 void setBufferContent(Buffer *buffer, const char *newContent);
 void message(BufferManager *bm, const char *message);
 void cleanBuffer(BufferManager *bm, char *name);
+
+// MODELINE
+void addSegment(Segments *segments, const char *name, const char *content);
+void initSegments(Segments *segments);
+/* void updateSegments(Modeline *modeline); */
+void updateSegments(Modeline *modeline, Buffer *buffer);
+
+// UTILITY FUNCTIONS
+int getLineNumber(Buffer *buffer);
 
 #endif

@@ -31,10 +31,31 @@ void initSyntax(Buffer *buffer) {
     initSyntaxArray(&buffer->syntaxArray, 10);  // Initial size
 }
 
+bool isHexColor(const char *text) {
+    if (text[0] == '#' && (strlen(text) == 4 || strlen(text) == 7)) {
+        for (int i = 1; i < strlen(text); i++) {
+            if (!((text[i] >= '0' && text[i] <= '9') || 
+                  (text[i] >= 'A' && text[i] <= 'F') || 
+                  (text[i] >= 'a' && text[i] <= 'f'))) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+
 // TODO Reorder them based on whats most found in a typucal c buffer
 // for free performance boost
 Color getNodeColor(TSNode node) {
     const char *nodeType = ts_node_type(node);
+
+    printf(ts_node_string(node));
+
+
+
+    
     
     if (strcmp(nodeType, "return") == 0
         || strcmp(nodeType, "if") == 0
@@ -261,3 +282,18 @@ void printSyntaxInfo(const Buffer *buffer) {
                i, syntax->start, syntax->end, syntax->color);
     }
 }
+
+TSPoint byteToPoint(const char* text, uint32_t byte) {
+    TSPoint point = {0, 0}; // Start at the beginning of the document
+    for (uint32_t i = 0; i < byte; ++i) {
+        if (text[i] == '\n') { // Newline character moves to the next line
+            point.row++;
+            point.column = 0;
+        } else {
+            point.column++; // Move one character to the right
+        }
+    }
+    return point;
+}
+
+

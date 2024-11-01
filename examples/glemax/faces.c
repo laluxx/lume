@@ -34,11 +34,9 @@ Font* updateFont(Scale *scale, int newIndex, char *fontname) {
     return globalFontCache[scale->index];
 }
 
-
-
-
-
-void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg) {
+// TODO fix the scroll
+void increaseFontSize(BufferManager *bm, char *fontname, WindowManager *wm, int sh, int arg) {
+    Buffer *buffer = getActiveBuffer(bm);
     Scale *scale = &buffer->scale;
     int nextIndex = scale->index + arg;
     if (arg == 0) {
@@ -60,10 +58,13 @@ void increaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh,
             }
             win = win->next;
         }
+    } else {
+        message(bm, "Cannot increase the font size any further");
     }
 }
 
-void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh, int arg) {
+void decreaseFontSize(BufferManager *bm, char *fontname, WindowManager *wm, int sh, int arg) {
+    Buffer *buffer = getActiveBuffer(bm);
     Scale *scale = &buffer->scale;
     int nextIndex = scale->index - arg;
     if (arg == 0) {
@@ -90,6 +91,8 @@ void decreaseFontSize(Buffer *buffer, char *fontname, WindowManager *wm, int sh,
             }
             win = win->next;
         }
+    } else {
+        message(bm, "Cannot decrease the font size any further");
     }
 }
 

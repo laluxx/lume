@@ -22,8 +22,9 @@ void kill_region(Buffer *buffer, KillRing *kr);
 /* void yank(Buffer *buffer, KillRing *kr); */
 void yank(Buffer *buffer, KillRing *kr, int arg);
 void kill_ring_save(Buffer *buffer, KillRing *kr);
-/* void insertChar(Buffer *buffer, char c); */
-void insertChar(Buffer *buffer, char c, int arg);
+void insertChar(Buffer *buffer, char c);
+/* void insertChar(Buffer *buffer, char c, int arg); */
+
 
 /* void right_char(Buffer *buffer, bool shift, BufferManager *bm); */
 /* void left_char(Buffer *buffer, bool shift, BufferManager *bm); */
@@ -60,9 +61,9 @@ void indent_region(Buffer *buffer, BufferManager *bm, int indentation, int arg);
 
 void goto_line(BufferManager *bm, WindowManager *wm, int sw, int sh);
 
-/* void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm, Buffer *minibuffer, Buffer *prompt, ISearch *isearch, int indentation, bool electric_indent_mode, int sw, int sh); */
-/* void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm, Buffer *minibuffer, Buffer *prompt, ISearch *isearch, int indentation, bool electric_indent_mode, int sw, int sh, int arg); */
-void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm, Buffer *minibuffer, Buffer *prompt, ISearch *isearch, int indentation, bool electric_indent_mode, int sw, int sh, NamedHistories *nh, int arg);
+/* void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm, Buffer *minibuffer, Buffer *prompt, ISearch *isearch, int indentation, bool electric_indent_mode, int sw, int sh, NamedHistories *nh, int arg); */
+void enter(Buffer *buffer, BufferManager *bm, WindowManager *wm, Buffer *minibuffer, Buffer *prompt, int indentation, bool electric_indent_mode, int sw, int sh, NamedHistories *nh, int arg);
+
 void find_file(BufferManager *bm, WindowManager *wm, int sw, int sh);
 
 void backspace(Buffer *buffer, bool electric_pair_mode);
@@ -80,5 +81,10 @@ void save_buffer(BufferManager *bm, Buffer *buffer);
 
 void execute_shell_command(BufferManager *bm, char *command);
 void shell_command(BufferManager *bm);
+
+
+void recenter(Window *window);
+extern int recenterState; // 0: Initial, 1: Top, 2: Center, 3: Bottom
+void recenter_top_bottom(Window *window);
 
 #endif
