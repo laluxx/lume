@@ -1,7 +1,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <stdio.h>
-#include "theme.h"
 #include "input.h"
 #include <stdlib.h>
 #include "renderer.h"
@@ -55,7 +54,6 @@ int main(void) {
 
     GLuint puta = loadTexture("./puta.jpg");
     GLuint pengu = loadTexture("./pengu.png");
-
     
     initFreeType();
     Font *jetb = loadFont("jetb.ttf", 100);
@@ -126,7 +124,6 @@ int main(void) {
         drawTriangleEx((Vec2f){100.0f, 50.0f}, RED, (Vec2f){1.0f, 0.0f},
                            (Vec2f){50.0f, 50.0f},  MAGENTA,     (Vec2f){0.0f, 0.0f},
                            (Vec2f){75.0f, 100.0f}, CYAN,       (Vec2f){0.5f, 1.0f});
-
         flush();
 
         drawFPS(jetb, 400.0, 400.0, RED);

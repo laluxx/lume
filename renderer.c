@@ -478,18 +478,10 @@ void uniform4f(const char *name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
     }
 }
 
-
 void beginScissorMode(Vec2f position, Vec2f size) {
     glEnable(GL_SCISSOR_TEST);
-    // Assuming the origin (0,0) is at the bottom-left of the screen
     glScissor((int)position.x, (int)position.y, (int)size.x, (int)size.y);
 }
-
-
-/* void beginScissorMode(int x, int y, int width, int height) { */
-/*     glEnable(GL_SCISSOR_TEST); // Enable scissor test */
-/*     glScissor(x, y, width, height); // Set scissor rectangle */
-/* } */
 
 void endScissorMode(void) {
     glDisable(GL_SCISSOR_TEST); // Disable scissor test
