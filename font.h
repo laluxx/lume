@@ -32,8 +32,10 @@ typedef struct {
     Character characters[MAX_CHARACTERS];
 } Font;
 
+
 void initFreeType();
 Font* loadFont(const char* fontPath, int fontSize);
+Font* loadFontEx(const char* fontPath, int fontSize, int* codepoints, int codepointCount);
 
 void drawText(Font* font, const char* text, float x, float y, Color textColor);
 

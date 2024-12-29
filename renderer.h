@@ -65,6 +65,7 @@ void drawTriangleEx(Vec2f p1, Color c1, Vec2f uv1,
 
 void drawRectangle(Vec2f position, Vec2f size, Color color);
 void drawRectangleLines(Vec2f position, Vec2f size, Color color, float lineThickness);
+
 void drawLine(Vec2f start, Vec2f end, Color color, float thickness);
 
 void updateProjectionMatrix(int width, int height);
@@ -80,6 +81,11 @@ void uniform4f(const char *name, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3)
 
 void beginScissorMode(Vec2f position, Vec2f size);
 void endScissorMode(void);
+
+
+void getTextureSize(GLuint textureID, int* width, int* height);
+void drawTextureOriginal(Vec2f position, GLuint textureID);
+void drawTextureScaled(Vec2f position, GLuint textureID, float scale);
 
 
 

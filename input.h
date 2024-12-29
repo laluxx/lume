@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "common.h"
 
+/// CALLBACKS
 typedef void (*TextCallback)(unsigned int codepoint);
 typedef void (*KeyInputCallback)(int key, int action, int mods);
 typedef void (*MouseButtonCallback)(int button, int action, int mods);
@@ -28,7 +29,6 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xOffset, double yOffset);
-
 
 
 
@@ -222,9 +222,5 @@ int isGamepadButtonDown(int button);
 #define GAMEPAD_AXIS_LEFT_TRIGGER  4
 #define GAMEPAD_AXIS_RIGHT_TRIGGER 5
 #define GAMEPAD_AXIS_LAST          GAMEPAD_AXIS_RIGHT_TRIGGER
-
-
-
-
 
 #endif

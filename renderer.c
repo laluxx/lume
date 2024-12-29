@@ -40,6 +40,47 @@ GLuint loadTexture(const char *filepath) {
     return textureID;
 }
 
+void getTextureSize(GLuint textureID, int* width, int* height) {
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, width);
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, height);
+}
+
+void drawTextureOriginal(Vec2f position, GLuint textureID) {
+    drawTextureScaled(position, textureID, 1.0f);
+}
+
+void drawTextureScaled(Vec2f position, GLuint textureID, float scale) {
+    int width, height;
+    getTextureSize(textureID, &width, &height);
+
+    // Apply scale to dimensions
+    float scaledWidth = width * scale;
+    float scaledHeight = height * scale;
+
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    Vec2f p1 = {position.x, position.y};
+    Vec2f p2 = {position.x + scaledWidth, position.y};
+    Vec2f p3 = {position.x, position.y + scaledHeight};
+    Vec2f p4 = {position.x + scaledWidth, position.y + scaledHeight};
+
+    Vec2f uv1 = {0.0f, 0.0f};
+    Vec2f uv2 = {1.0f, 0.0f};
+    Vec2f uv3 = {0.0f, 1.0f};
+    Vec2f uv4 = {1.0f, 1.0f};
+
+    Color white = {255, 255, 255, 1.0};
+
+    drawTriangleEx(p1, white, uv1,
+                   p3, white, uv3,
+                   p2, white, uv2);
+    
+    drawTriangleEx(p2, white, uv2,
+                   p3, white, uv3,
+                   p4, white, uv4);
+}
+
 
 void drawTexture(Vec2f position, Vec2f size, GLuint textureID) {
 
@@ -347,6 +388,8 @@ void drawRectangleLines(Vec2f position, Vec2f size, Color color, float lineThick
                   color);
 }
 
+
+
 void drawLine(Vec2f start, Vec2f end, Color color, float thickness) {
     Vec2f position, size;
 
@@ -457,7 +500,6 @@ static GLuint linkProgram(const char *vertexSource, const char *fragmentSource) 
 
     return program;
 }
-
 
 GLint getUniformLocation(const char* uniformName) {
     if (renderer.activeShader == 0) {

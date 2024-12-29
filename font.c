@@ -318,7 +318,6 @@ void drawChar(Font* font, char character, float x, float y, float sx, float sy, 
                        (Vec2f){xpos + w, ypos}, color, uv4);
 }
 
-
 void freeFont(Font* font) {
     glDeleteTextures(1, &font->textureID);
     free(font);
@@ -347,6 +346,7 @@ float getCharacterWidth(Font* font, char character) {
     return font->characters[character].ax;
 }
 
+
 float getTextWidth(Font* font, const char* text) {
     float width = 0.0f;
     for (int i = 0; text[i] != '\0'; i++) {
@@ -357,7 +357,6 @@ float getTextWidth(Font* font, const char* text) {
     }
     return width;
 }
-
 
 
 static double lastTime = 0.0;

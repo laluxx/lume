@@ -3,7 +3,6 @@
 
 #include "renderer.h"
 #include "input.h"
-#include "theme.h"
 #include "font.h"
 #include "common.h"
 #include "window.h"

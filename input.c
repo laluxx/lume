@@ -1,4 +1,5 @@
 #include "input.h"
+#include "keychords.h"
 #include <stdio.h>
 
 // TODO Debouncing
@@ -23,6 +24,7 @@ bool printKeyInfo = true;
 static Vec2f lastMousePosition = {0.0, 0.0};
 static Vec2f currentMousePosition = {0.0, 0.0};
 
+
 void initInput() {
     for (int i = 0; i < MAX_KEYS; i++) {
         keys[i] = 0;
@@ -34,6 +36,8 @@ void initInput() {
         mouseButtonsPressed[i] = 0;
         mouseButtonsReleased[i] = 0;
     }
+
+    initKeyChordManager();
 }
 
 static void updateMouseButtons() {
@@ -227,18 +231,11 @@ void registerCursorPosCallback(CursorPosCallback callback) {
 }
 
 
-
 void char_callback(GLFWwindow* window, unsigned int codepoint) {
     if (currentTextCallback != NULL) {
         currentTextCallback(codepoint);
     }
 }
-
-/* void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) { */
-/*     if (currentKeyCallback != NULL) { */
-/*         currentKeyCallback(key, action, mods); */
-/*     } */
-/* } */
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     // Update the internal state first
@@ -247,14 +244,32 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
         keysPressed[key] = 1;
     } else if (action == GLFW_RELEASE) {
         keys[key] = 0;
-        // Optionally handle keysReleased array here if implemented
     }
+
+    // Process key input for key chord system
+    processKeyInput(key, action, mods);
 
     // Then call the user's callback if it's registered
     if (currentKeyCallback != NULL) {
         currentKeyCallback(key, action, mods);
     }
 }
+
+/* void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) { */
+/*     // Update the internal state first */
+/*     if (action == GLFW_PRESS) { */
+/*         keys[key] = 1; */
+/*         keysPressed[key] = 1; */
+/*     } else if (action == GLFW_RELEASE) { */
+/*         keys[key] = 0; */
+/*         // Optionally handle keysReleased array here if implemented */
+/*     } */
+
+/*     // Then call the user's callback if it's registered */
+/*     if (currentKeyCallback != NULL) { */
+/*         currentKeyCallback(key, action, mods); */
+/*     } */
+/* } */
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (currentMouseButtonCallback != NULL) {
