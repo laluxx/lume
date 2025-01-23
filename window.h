@@ -15,6 +15,7 @@ int getScreenWidth();
 int getScreenHeight();
 
 double getTime();
+int getWindowAttribute(int attribute);
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void char_callback(GLFWwindow* window, unsigned int codepoint);

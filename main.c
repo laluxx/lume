@@ -56,7 +56,7 @@ int main(void) {
     GLuint pengu = loadTexture("./pengu.png");
     
     initFreeType();
-    Font *jetb = loadFont("jetb.ttf", 100);
+    Font *jetb = loadFont("jetb.ttf", 100, "jetb");
 
     while (!glfwWindowShouldClose(window)) {
         

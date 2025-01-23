@@ -118,6 +118,16 @@ double getTime() {
 }
 
 
+int getWindowAttribute(int attribute) {
+    if (!g_window) {
+        fprintf(stderr, "Error: Window not initialized. Call initWindow() first.\n");
+        return 0;
+    }
+    return glfwGetWindowAttrib(g_window, attribute);
+}
+
+
+
 #include <stdbool.h>
 
 // TODO

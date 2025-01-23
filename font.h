@@ -10,6 +10,8 @@
 
 #include "renderer.h"
 
+#define MAX_PATH 4096
+
 typedef struct {
     float ax;  // advance.x
     float ay;  // advance.y
@@ -24,17 +26,34 @@ typedef struct {
 #define MAX_CHARACTERS 128  // NOTE Supporting basic ASCII
 
 typedef struct {
-    GLuint textureID;     // ID handle of the glyph texture
-    unsigned int width;   // width of the texture atlas
-    unsigned int height;  // height of the texture atlas
+    FT_Face face;
+    int currentChar;
+    int fontSize;
+    double startTime;
+    double duration;
+    bool isComplete;
+    unsigned char* atlas;
+    int atlasSize;
+    int ox;
+    int oy;
+    int rowh;
+} FontLoadingState;
+
+typedef struct {
+    GLuint textureID;
+    unsigned int width;
+    unsigned int height;
     int ascent;
     int descent;
     Character characters[MAX_CHARACTERS];
+    FontLoadingState* loadingState;  // NULL when font is fully loaded
+    char *path;
+    char *name;
 } Font;
 
-
 void initFreeType();
-Font* loadFont(const char* fontPath, int fontSize);
+/* Font* loadFont(const char* fontPath, int fontSize); */
+Font* loadFont(const char *fontPath, int fontSize, char *fontName);
 Font* loadFontEx(const char* fontPath, int fontSize, int* codepoints, int codepointCount);
 
 void drawText(Font* font, const char* text, float x, float y, Color textColor);
@@ -58,6 +77,11 @@ void initFPS();
 void updateFPS();
 void drawFPS(Font* font, float x, float y, Color color);
 
+Font* beginFontLoad(const char* fontPath, int fontSize, double duration);
+bool updateFontLoad(Font* font);
+float getFontLoadProgress(Font* font);
+
+char* getFontPath(const char* fontName);
 
 
 #endif // FONT_H
