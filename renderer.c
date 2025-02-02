@@ -13,6 +13,24 @@
 
 Renderer renderer = {0};
 
+
+GLuint fillTexture(int width, int height, unsigned char* data, int channels) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    GLenum format = (channels == 4) ? GL_RGBA : GL_RGB;
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format,
+                 GL_UNSIGNED_BYTE, data);
+    
+    printf("[FILLED TEXTURE] %d x %d %d\n", width, height, channels);
+    
+    return textureID;
+}
+
 GLuint loadTexture(const char *filepath) {
     stbi_set_flip_vertically_on_load(1);
     int width, height, channels;

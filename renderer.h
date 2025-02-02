@@ -39,9 +39,10 @@ typedef struct {
 } Renderer;
 
 extern Renderer renderer;
-
 void initRenderer(int screenWidth, int screenHeight);
 void freeRenderer();
+
+typedef GLuint TextureID;
 
 
 int newShaderString(const char *vertexSrc, const char *fragmentSrc,
@@ -74,6 +75,7 @@ void deleteShaders();
 void reloadShaders();
 
 GLuint loadTexture(const char* filepath);
+GLuint fillTexture(int width, int height, unsigned char *data, int channels);
 void drawTexture(Vec2f position, Vec2f size, GLuint textureID);
 
 GLint getUniformLocation(const char* uniformName);

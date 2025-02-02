@@ -29,9 +29,6 @@ typedef struct {
     FT_Face face;
     int currentChar;
     int fontSize;
-    double startTime;
-    double duration;
-    bool isComplete;
     unsigned char* atlas;
     int atlasSize;
     int ox;
@@ -54,7 +51,6 @@ typedef struct {
 void initFreeType();
 /* Font* loadFont(const char* fontPath, int fontSize); */
 Font* loadFont(const char *fontPath, int fontSize, char *fontName);
-Font* loadFontEx(const char* fontPath, int fontSize, int* codepoints, int codepointCount);
 
 void drawText(Font* font, const char* text, float x, float y, Color textColor);
 

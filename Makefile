@@ -1,5 +1,5 @@
 CC := clang
-CFLAGS := -Wall -Wextra -I/usr/include/freetype2 -I. -g -fPIC
+CFLAGS := -Wall -O3 -Wextra -I/usr/include/freetype2 -I. -g -fPIC
 LDLIBS := -lglfw -lGL -lGLEW -lm -lfreetype -lfontconfig
 TARGET := lume
 LIB_NAME := liblume
