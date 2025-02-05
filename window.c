@@ -51,7 +51,7 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     glGetError(); // Clear the error caused by GLEW initialization
 
     // Set V-Sync
-    glfwSwapInterval(0);
+    glfwSwapInterval(1);
     glfwSetFramebufferSizeCallback(g_window, framebuffer_size_callback);
 
 
