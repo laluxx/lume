@@ -285,11 +285,10 @@ void reloadShaders() {
 
 void initShaders() {
     newShader("./shaders/simple.vert", "./shaders/simple.frag",  "simple");
-    newShader("./shaders/wave.vert",   "./shaders/cool.frag",    "wave");
+    newShader("./shaders/wave.vert",   "./shaders/simple.frag",  "wave");
     newShader("./shaders/simple.vert", "./shaders/circle.frag",  "circle");
     newShader("./shaders/simple.vert", "./shaders/texture.frag", "texture");
     newShader("./shaders/simple.vert", "./shaders/text.frag",    "text");
-    newShader("./shaders/wave.vert",   "./shaders/text.frag",    "text");
 }
 
 void useShader(const char *shaderName) {

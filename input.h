@@ -176,6 +176,7 @@ int isGamepadButtonDown(int button);
 #define KEY_MENU               348
 
 #define KEY_LAST               KEY_MENU
+#define KEY_UNKNOWN            GLFW_KEY_UNKNOWN
 
 
 // GAMEPAD
