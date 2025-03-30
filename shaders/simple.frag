@@ -7,6 +7,6 @@ in vec2 TexCoord; // Receive UV coordinates
 void main()
 {
     // For now, just output the color. This shader doesn't yet use TexCoord.
-    FragColor = vec4(ourColor, 1.0);
+    FragColor = vec4(ourColor, 0.5);
 }
 

@@ -43,7 +43,12 @@ void initRenderer(int screenWidth, int screenHeight);
 void freeRenderer();
 
 typedef GLuint TextureID;
+typedef float (*EasingFunction)(float t);
 
+float easeLinear(float t);
+float easeInQuad(float t);
+float easeOutQuad(float t);
+float easeInOutQuad(float t);
 
 int newShaderString(const char *vertexSrc, const char *fragmentSrc,
                     const char *shaderName);

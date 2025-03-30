@@ -107,7 +107,7 @@ bool shouldSaveAtlas = false;
 /* } */
 
 // DYNAMIC ATLAS SIZE FIX WITH PIXEL INVERSION
-Font* loadFont(const char *fontPath, int fontSize, char *fontName) {
+Font* loadFont(const char *fontPath, int fontSize, char *fontName, size_t tab) {
     FT_Face face;
     if (FT_New_Face(ft, fontPath, 0, &face)) {
         fprintf(stderr, "Failed to load font: %s\n", fontPath);
@@ -127,6 +127,7 @@ Font* loadFont(const char *fontPath, int fontSize, char *fontName) {
 
     font->path = strdup(fontPath);
     font->name = strdup(fontName);
+    font->tab  = tab;
     
 
     // Save ascent and descent, converting from FreeType 26.6 fixed-point format
@@ -289,8 +290,13 @@ void drawText(Font* font, const char* text, float x, float y, Color textColor) {
     flush();
 }
 
-// NOTE we dont set the shader to allow the user to set whatever shader he want and batch render
+
 void drawChar(Font* font, char character, float x, float y, float sx, float sy, Color color) {
+    if (character == '\t') {
+        // Tab character is handled as cursor positioning only, nothing to draw
+        return; // Simply return as the tab character itself isn't rendered
+    }
+
     if (character < 0 || character >= MAX_CHARACTERS) {
         fprintf(stderr, "Character out of supported range: %d.\n", character);
         return;
@@ -318,13 +324,52 @@ void drawChar(Font* font, char character, float x, float y, float sx, float sy, 
     glActiveTexture(GL_TEXTURE0);
 
     drawTriangleEx((Vec2f){xpos, ypos}, color, uv1,
-                       (Vec2f){xpos, ypos + h}, color, uv2,
-                       (Vec2f){xpos + w, ypos + h}, color, uv3);
+                   (Vec2f){xpos, ypos + h}, color, uv2,
+                   (Vec2f){xpos + w, ypos + h}, color, uv3);
 
     drawTriangleEx((Vec2f){xpos, ypos}, color, uv1,
-                       (Vec2f){xpos + w, ypos + h}, color, uv3,
-                       (Vec2f){xpos + w, ypos}, color, uv4);
+                   (Vec2f){xpos + w, ypos + h}, color, uv3,
+                   (Vec2f){xpos + w, ypos}, color, uv4);
 }
+
+
+
+// NOTE we dont set the shader to allow the user to set whatever shader he want and batch render
+/* void drawChar(Font* font, char character, float x, float y, float sx, float sy, Color color) { */
+/*     if (character < 0 || character >= MAX_CHARACTERS) { */
+/*         fprintf(stderr, "Character out of supported range: %d.\n", character); */
+/*         return; */
+/*     } */
+
+/*     Character ch = font->characters[character]; */
+
+/*     // Correct the y position to align the baseline of the font */
+/*     GLfloat xpos = x + ch.bl * sx; */
+/*     GLfloat ypos = y - (ch.bh - ch.bt + font->descent) * sy; */
+
+/*     GLfloat w = ch.bw * sx; */
+/*     GLfloat h = ch.bh * sy; */
+
+/*     // Compute UV coordinates dynamically based on the actual texture size */
+/*     GLfloat atlasWidth = (float)font->width; */
+/*     GLfloat atlasHeight = (float)font->height; */
+
+/*     Vec2f uv1 = {ch.tx, ch.ty}; */
+/*     Vec2f uv2 = {ch.tx, ch.ty + (ch.bh / atlasHeight)}; */
+/*     Vec2f uv3 = {ch.tx + (ch.bw / atlasWidth), ch.ty + (ch.bh / atlasHeight)}; */
+/*     Vec2f uv4 = {ch.tx + (ch.bw / atlasWidth), ch.ty}; */
+
+/*     glBindTexture(GL_TEXTURE_2D, font->textureID); */
+/*     glActiveTexture(GL_TEXTURE0); */
+
+/*     drawTriangleEx((Vec2f){xpos, ypos}, color, uv1, */
+/*                        (Vec2f){xpos, ypos + h}, color, uv2, */
+/*                        (Vec2f){xpos + w, ypos + h}, color, uv3); */
+
+/*     drawTriangleEx((Vec2f){xpos, ypos}, color, uv1, */
+/*                        (Vec2f){xpos + w, ypos + h}, color, uv3, */
+/*                        (Vec2f){xpos + w, ypos}, color, uv4); */
+/* } */
 
 void freeFont(Font* font) {
     glDeleteTextures(1, &font->textureID);
@@ -346,6 +391,10 @@ float getFontWidth(Font* font) {
     return font->characters[' '].ax;
 }
 
+float getTabWidth(Font *font, size_t tab) {
+  return font->characters[' '].ax * tab;
+}
+
 float getCharacterWidth(Font* font, char character) {
     if (character < 0 || character >= MAX_CHARACTERS) {
         fprintf(stderr, "Character out of supported range.\n");
@@ -354,17 +403,25 @@ float getCharacterWidth(Font* font, char character) {
     return font->characters[character].ax;
 }
 
-
-float getTextWidth(Font* font, const char* text) {
+float getTextWidth(Font *font, const char *text) {
     float width = 0.0f;
     for (int i = 0; text[i] != '\0'; i++) {
         char c = text[i];
-        if (c >= 0 && c < MAX_CHARACTERS) {
-            width += getCharacterWidth(font, c);
-        }
+        width += getCharacterWidth(font, c);
     }
     return width;
 }
+
+/* float getTextWidth(Font* font, const char* text) { */
+/*     float width = 0.0f; */
+/*     for (int i = 0; text[i] != '\0'; i++) { */
+/*         char c = text[i]; */
+/*         if (c >= 0 && c < MAX_CHARACTERS) { */
+/*             width += getCharacterWidth(font, c); */
+/*         } */
+/*     } */
+/*     return width; */
+/* } */
 
 
 static double lastTime = 0.0;

@@ -163,7 +163,6 @@ void initRenderer(int screenWidth, int screenHeight) {
 
     // Load initial shaders
     initShaders();
-
     // Set up the projection matrix
     updateProjectionMatrix(screenWidth, screenHeight);
 }
@@ -545,3 +544,12 @@ void beginScissorMode(Vec2f position, Vec2f size) {
 void endScissorMode(void) {
     glDisable(GL_SCISSOR_TEST); // Disable scissor test
 }
+
+
+
+// Basic easing functions
+float easeLinear(float t)    { return t; }
+float easeInQuad(float t)    { return t * t; }
+float easeOutQuad(float t)   { return t * (2 - t); }
+float easeInOutQuad(float t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;}
+

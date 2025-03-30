@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 static GLFWwindow* g_window = NULL;
+bool swap_interval;
 
 GLFWwindow* initWindow(int width, int height, const char* title) {
     if (!glfwInit()) {
@@ -51,16 +52,16 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     glGetError(); // Clear the error caused by GLEW initialization
 
     // Set V-Sync
-    glfwSwapInterval(1);
+    glfwSwapInterval(swap_interval); // 1!
     glfwSetFramebufferSizeCallback(g_window, framebuffer_size_callback);
 
 
-    // Set up a framebuffer size callback if needed
+    // TODO Set up a framebuffer size callback
     /* glfwSetFramebufferSizeCallback(g_window, framebuffer_size_callback); */
 
-    // Enable GL capabilities as needed
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
 
     initInput();
     initRenderer(width, height);
@@ -142,6 +143,31 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     updateProjectionMatrix(width, height);
 }
 
+void setSwapInterval(bool enable) {
+    swap_interval = enable;
+    if (g_window != NULL) {
+        glfwMakeContextCurrent(g_window);
+        glfwSwapInterval(swap_interval ? 1 : 0);
+    }
+}
+
+void toggle_vsync() { setSwapInterval(!swap_interval); }
 
 
 
+
+
+bool alphaBlendingEnabled = true; // Track blending state
+
+void enableAlphaBlending() {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    alphaBlendingEnabled = true;
+}
+
+void disableAlphaBlending() {
+    glDisable(GL_BLEND);
+    alphaBlendingEnabled = false;
+}
+
+bool isAlphaBlendingEnabled() { return alphaBlendingEnabled; }

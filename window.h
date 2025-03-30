@@ -20,5 +20,13 @@ int getWindowAttribute(int attribute);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void char_callback(GLFWwindow* window, unsigned int codepoint);
 
+extern bool swap_interval;
+void setSwapInterval(bool enable);
+void toggle_vsync();
+
+extern bool alphaBlendingEnabled;
+void enableAlphaBlending();
+void disableAlphaBlending();
+bool isAlphaBlendingEnabled();
 
 #endif // WINDOW_H

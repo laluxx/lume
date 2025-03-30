@@ -9,6 +9,7 @@
 #include <GLFW/glfw3.h>
 
 #include "renderer.h"
+#include <stdint.h>
 
 #define MAX_PATH 4096
 
@@ -46,11 +47,12 @@ typedef struct {
     FontLoadingState* loadingState;  // NULL when font is fully loaded
     char *path;
     char *name;
+    size_t tab;
 } Font;
 
 void initFreeType();
-/* Font* loadFont(const char* fontPath, int fontSize); */
-Font* loadFont(const char *fontPath, int fontSize, char *fontName);
+/* Font *loadFont(const char *fontPath, int fontSize, char *fontName); */
+Font *loadFont(const char *fontPath, int fontSize, char *fontName, size_t tab);
 
 void drawText(Font* font, const char* text, float x, float y, Color textColor);
 
@@ -78,6 +80,9 @@ bool updateFontLoad(Font* font);
 float getFontLoadProgress(Font* font);
 
 char* getFontPath(const char* fontName);
+
+float getTabWidth(Font* font, size_t tab);
+
 
 
 #endif // FONT_H
