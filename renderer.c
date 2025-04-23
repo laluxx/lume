@@ -288,6 +288,7 @@ void initShaders() {
     newShader("./shaders/simple.vert", "./shaders/circle.frag",  "circle");
     newShader("./shaders/simple.vert", "./shaders/texture.frag", "texture");
     newShader("./shaders/simple.vert", "./shaders/text.frag",    "text");
+    newShader("./shaders/simple.vert", "./shaders/gaytext.frag", "gay");
 }
 
 void useShader(const char *shaderName) {
@@ -332,9 +333,9 @@ void flush() {
 }
 
 void drawVertex(Vec2f position, Color color, Vec2f uv) {
-    if (renderer.vertexCount >= VERTICIES_CAP) {
-        flush();
-    }
+    /* if (renderer.vertexCount >= VERTICIES_CAP) { */
+    /*     flush(); */
+    /* } */
 
     Vertex *vertex = &renderer.vertices[renderer.vertexCount++];
     vertex->x = position.x;
@@ -553,3 +554,7 @@ float easeInQuad(float t)    { return t * t; }
 float easeOutQuad(float t)   { return t * (2 - t); }
 float easeInOutQuad(float t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;}
 
+
+void deleteTextures(GLsizei n, const TextureID *textures) {
+    glDeleteTextures(n, textures);
+}

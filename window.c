@@ -5,6 +5,7 @@
 #include "input.h"
 #include <stdio.h>
 #include <stdbool.h>
+#include "widgets.h"
 
 static GLFWwindow* g_window = NULL;
 bool swap_interval;
@@ -67,6 +68,8 @@ GLFWwindow* initWindow(int width, int height, const char* title) {
     initRenderer(width, height);
     initFreeType();
     initFPS();
+
+    widgetsFont = loadFont("jetb.ttf", 21, "jetb", 4);
     return g_window;
 }
 

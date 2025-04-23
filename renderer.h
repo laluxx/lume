@@ -94,7 +94,7 @@ void getTextureSize(GLuint textureID, int* width, int* height);
 void drawTextureOriginal(Vec2f position, GLuint textureID);
 void drawTextureScaled(Vec2f position, GLuint textureID, float scale);
 
-
+void deleteTextures(GLsizei n, const TextureID *textures);
 
 // TODO Hardcoded in lib shaders
 /* const char* simple_vert = */
@@ -128,7 +128,5 @@ void drawTextureScaled(Vec2f position, GLuint textureID, float scale);
 /*     "    // For now, just output the color. This shader doesn't yet use TexCoord.\n" */
 /*     "    FragColor = vec4(ourColor, 1.0);\n" */
 /*     "}\n"; */
-
-
 
 #endif  // RENDERER_H
